@@ -147,24 +147,26 @@ At the end of every conversation where the user learns a new concept, completes 
 
 ## Learning Tracker
 
-**Current phase:** Phase 1 — Tokenizer (Lexer)
-**Next step:** Define a `Token` enum and `TokenType` enum for the Lox lexer
+**Current phase:** Phase 2 — Parser (AST)
+**Next step:** Define `Expr` enum for Lox expressions (recursive types, `Box<T>`)
 
-### Phase 1 — Tokenizer (Lexer)
-- [ ] `enum` definition and variants (`TokenType` + `Token` struct)
-- [ ] `#[derive(Debug, Clone, PartialEq)]` — trait derivation
-- [ ] `match` and pattern matching basics
-- [ ] `Option<T>` and `peek()` pattern
-- [ ] Ownership: `String` vs `&str`
-- [ ] Iterators: `.chars()`, `.peekable()`, `.by_ref()`
-- [ ] `Vec<T>` and `push()`
-- [ ] Scanning single-char tokens (`(`, `)`, `{`, `}`, `,`, `.`, `-`, `+`, `;`, `/`, `*`)
-- [ ] Scanning two-char tokens (`!=`, `==`, `<=`, `>=`)
-- [ ] Scanning string literals (`"..."`)
-- [ ] Scanning number literals (integers and floats)
-- [ ] Scanning identifiers and keywords (`and`, `class`, `else`, `false`, `fun`, `for`, `if`, `nil`, `or`, `print`, `return`, `super`, `this`, `true`, `var`, `while`)
-- [ ] Skipping whitespace and comments (`//`)
-- [ ] Writing a full `Scanner` struct end-to-end
+### Phase 1 — Tokenizer (Lexer) ✅ COMPLETE
+- [x] `enum` definition and variants (`TokenType` + `Token` struct)
+- [~] `#[derive(Debug, Clone, PartialEq)]` — only `Debug` derived so far, will need `Clone`/`PartialEq` in Phase 2
+- [x] `match` and pattern matching basics
+- [x] `Option<T>` and `peek()` pattern
+- [~] Ownership: `String` vs `&str` — understands `[..]` slicing and `as_str()`, still building intuition
+- [x] Iterators: `.chars()`, `.peekable()`
+- [x] `Vec<T>` and `push()`
+- [x] Scanning single-char tokens (`(`, `)`, `{`, `}`, `,`, `.`, `-`, `+`, `;`, `/`, `*`)
+- [x] Scanning two-char tokens (`!=`, `==`, `<=`, `>=`)
+- [x] Scanning string literals (`"..."`) — including escape sequences (`\n`, `\t`, `\\`, `\"`)
+- [x] Scanning number literals (integers and floats)
+- [x] Scanning identifiers and keywords (all 16 Lox keywords)
+- [x] Skipping whitespace and newlines + comments (`//`)
+- [x] EOF token added at end of scan
+- [x] Writing a full `Scanner` struct end-to-end
+- **Known edge case:** `.` and `/` at non-EOF positions without a following char don't emit tokens (minor, fix later)
 
 ### Phase 2 — Parser (AST)
 - [ ] Recursive enum types for Lox expressions (why they need `Box<T>`)

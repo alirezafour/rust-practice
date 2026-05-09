@@ -38,6 +38,7 @@ pub enum TokenTypes {
     TRUE,
     VAR,
     WHILE,
+    EOF,
 }
 
 #[derive(Debug)]
@@ -93,14 +94,6 @@ impl Scanner {
                     let token = Token {
                         token_type: TokenTypes::SEMICOLON,
                         lexeme: ";".to_string(),
-                        line: self.line,
-                    };
-                    tokens.push(token);
-                }
-                '/' => {
-                    let token = Token {
-                        token_type: TokenTypes::SLASH,
-                        lexeme: "/".to_string(),
                         line: self.line,
                     };
                     tokens.push(token);
@@ -269,6 +262,12 @@ impl Scanner {
                                 lexeme: number_str,
                                 line: self.line,
                             });
+                        } else {
+                            tokens.push(Token {
+                                token_type: TokenTypes::DOT,
+                                lexeme: ".".to_string(),
+                                line: self.line,
+                            });
                         }
                     } else {
                         tokens.push(Token {
@@ -372,6 +371,18 @@ impl Scanner {
                         if next == '\"' {
                             is_valid = true;
                             break;
+                        } else if next == '\\' {
+                            if let Some(escaped) = chars.next() {
+                                match escaped {
+                                    'n' => string_literal.push('\n'),
+                                    't' => string_literal.push('\t'),
+                                    '\\' => string_literal.push('\\'),
+                                    '\"' => string_literal.push('\"'),
+                                    _ => panic!("Invalid escape sequence: \\{}", escaped),
+                                }
+                            } else {
+                                panic!("Unterminated escape sequence in string literal");
+                            }
                         } else if next == '\n' {
                             panic!("Unexpected new line in string literal");
                         } else {
@@ -387,11 +398,40 @@ impl Scanner {
                         line: self.line,
                     });
                 }
+                '/' => {
+                    if let Some(&next) = chars.peek() {
+                        if next == '/' {
+                            while let Some(next) = chars.next() {
+                                if next == '\n' {
+                                    self.line += 1;
+                                    break;
+                                }
+                            }
+                        } else {
+                            tokens.push(Token {
+                                token_type: TokenTypes::SLASH,
+                                lexeme: "/".to_string(),
+                                line: self.line,
+                            });
+                        }
+                    } else {
+                        tokens.push(Token {
+                            token_type: TokenTypes::SLASH,
+                            lexeme: '/'.to_string(),
+                            line: self.line,
+                        });
+                    }
+                }
                 _ => {
                     panic!("Unknown character: {}", c);
                 }
             }
         }
+        tokens.push(Token {
+            token_type: TokenTypes::EOF,
+            lexeme: "".to_string(),
+            line: self.line,
+        });
         tokens
     }
 }
@@ -418,6 +458,13 @@ fn main() {
         "abc",
         "var abc = if while\n true == false \")#$ Margarita if else @\"",
         "var x = 10;",
+        "var x = 10;\nabc=\"\\n \\t if that all string\"\n// this is just a comment and will be skipped.\na = 2;",
+        "x.foo",
+        "vv.",
+        "abc/",
+        "12/221.2",
+        "12/ntnt/.",
+        "12.",
     ];
     for test in test_cases {
         let source = test.to_string();
