@@ -148,11 +148,11 @@ At the end of every conversation where the user learns a new concept, completes 
 ## Learning Tracker
 
 **Current phase:** Phase 2 — Parser (AST)
-**Next step:** Define `Expr` enum for Lox expressions (recursive types, `Box<T>`)
+**Next step:** Add grouping support to parser (parentheses), then add more literal types (true, false, nil, strings)
 
 ### Phase 1 — Tokenizer (Lexer) ✅ COMPLETE
 - [x] `enum` definition and variants (`TokenType` + `Token` struct)
-- [~] `#[derive(Debug, Clone, PartialEq)]` — only `Debug` derived so far, will need `Clone`/`PartialEq` in Phase 2
+- [x] `#[derive(Debug, Clone, PartialEq)]` — added `Clone` and `PartialEq` in Phase 2 for parser needs
 - [x] `match` and pattern matching basics
 - [x] `Option<T>` and `peek()` pattern
 - [~] Ownership: `String` vs `&str` — understands `[..]` slicing and `as_str()`, still building intuition
@@ -169,13 +169,13 @@ At the end of every conversation where the user learns a new concept, completes 
 - **Known edge case:** `.` and `/` at non-EOF positions without a following char don't emit tokens (minor, fix later)
 
 ### Phase 2 — Parser (AST)
-- [ ] Recursive enum types for Lox expressions (why they need `Box<T>`)
-- [ ] `Box<T>` — heap allocation, single ownership
-- [ ] Structs and `impl` blocks for `Expr` and `Stmt` types
-- [ ] Borrowing and references (`&self`, `&mut self`)
-- [ ] Building and traversing a tree structure
-- [ ] Writing a recursive descent parser with operator precedence
-- [ ] Parsing expressions: literals, unary, binary, grouping, variables, assignment, logical, call, lambda
+- [x] Recursive enum types for Lox expressions (why they need `Box<T>`)
+- [x] `Box<T>` — heap allocation, single ownership
+- [x] Structs and `impl` blocks for `Expr` and `Stmt` types
+- [x] Borrowing and references (`&self`, `&mut self`)
+- [x] Building and traversing a tree structure
+- [x] Writing a recursive descent parser with operator precedence
+- [~] Parsing expressions: literals, unary, binary (done) — still need: grouping, variables, assignment, logical, call, lambda
 - [ ] Parsing statements: expression, print, var, block, if, while, function, return
 
 ### Phase 3 — Tree-Walk Interpreter
@@ -201,4 +201,6 @@ At the end of every conversation where the user learns a new concept, completes 
 - [ ] Lambdas (`fun (params) { body }`)
 
 ### Notes
-<!-- Add observations about what the user found easy, difficult, or surprising. -->
+- User grasped the recursive descent parser structure quickly once the precedence chain was explained concretely with `2 + 3 * 4` example
+- Initially confused about which function calls which in the chain — fixed by emphasizing each level only talks to its immediate neighbor
+- `match_token_type` vs `check` distinction was tricky (advancing consumes the token, losing it) — switched to `check` + `advance` pattern

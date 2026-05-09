@@ -1,4 +1,4 @@
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum TokenTypes {
     LEFT_PAREN,
     RIGHT_PAREN,
@@ -41,7 +41,7 @@ pub enum TokenTypes {
     EOF,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct Token {
     pub token_type: TokenTypes,
     pub lexeme: String,
@@ -436,6 +436,131 @@ impl Scanner {
     }
 }
 
+#[derive(Debug)]
+enum Expr {
+    Literal {
+        identifier: String,
+    },
+    Binary {
+        left: Box<Expr>,
+        operation: Token,
+        right: Box<Expr>,
+    },
+    Unary {
+        operation: Token,
+        right: Box<Expr>,
+    },
+    Grouping {
+        expression: Box<Expr>,
+    },
+}
+
+struct Parser {
+    tokens: Vec<Token>,
+    current: usize,
+}
+
+impl Parser {
+    fn new(tokens: Vec<Token>) -> Self {
+        Parser { tokens, current: 0 }
+    }
+    fn peek(&self) -> Option<&Token> {
+        self.tokens.get(self.current)
+    }
+    fn advance(&mut self) -> Token {
+        let token = self.tokens[self.current].clone();
+        self.current += 1;
+        token
+    }
+    fn check(&self, token_type: TokenTypes) -> bool {
+        if let Some(token) = self.peek()
+            && token.token_type == token_type
+        {
+            return true;
+        }
+        false
+    }
+    fn equality(&mut self) -> Expr {
+        let mut left = self.comparison();
+        while self.check(TokenTypes::EQUAL_EQUAL) || self.check(TokenTypes::BANG_EQUAL) {
+            let operation = self.advance();
+            let right = self.comparison();
+            left = Expr::Binary {
+                left: Box::new(left),
+                operation,
+                right: Box::new(right),
+            }
+        }
+        left
+    }
+    fn comparison(&mut self) -> Expr {
+        let mut left = self.term();
+        while self.check(TokenTypes::LESS)
+            || self.check(TokenTypes::LESS_EQUAL)
+            || self.check(TokenTypes::GREATER)
+            || self.check(TokenTypes::GREATER_EQUAL)
+        {
+            let operation = self.advance();
+            let right = self.term();
+            left = Expr::Binary {
+                left: Box::new(left),
+                operation,
+                right: Box::new(right),
+            }
+        }
+        left
+    }
+
+    fn term(&mut self) -> Expr {
+        let mut left = self.factor();
+        while self.check(TokenTypes::PLUS) || self.check(TokenTypes::MINUS) {
+            let operation = self.advance();
+            let right = self.factor();
+            left = Expr::Binary {
+                left: Box::new(left),
+                operation,
+                right: Box::new(right),
+            }
+        }
+        left
+    }
+    fn factor(&mut self) -> Expr {
+        let mut left = self.unary();
+        while self.check(TokenTypes::STAR) || self.check(TokenTypes::SLASH) {
+            let operation = self.advance();
+            let right = self.unary();
+            left = Expr::Binary {
+                left: Box::new(left),
+                operation,
+                right: Box::new(right),
+            }
+        }
+        left
+    }
+    fn unary(&mut self) -> Expr {
+        let mut left = self.primary();
+        if self.check(TokenTypes::MINUS) || self.check(TokenTypes::BANG) {
+            let operation = self.advance();
+            let right = self.primary();
+            left = Expr::Unary {
+                operation: operation,
+                right: Box::new(right),
+            };
+        }
+        left
+    }
+
+    fn primary(&mut self) -> Expr {
+        if self.check(TokenTypes::NUMBER) || self.check(TokenTypes::IDENTIFIER) {
+            let operation = self.advance();
+            return Expr::Literal {
+                identifier: operation.lexeme,
+            };
+        }
+        panic!("this should be primary");
+    }
+}
+
 fn main() {
     let test_cases = vec![
         "!=",
@@ -476,5 +601,19 @@ fn main() {
 
         let tokens = scanner.scan_tokens();
         println!("Tokens: {:?}", tokens);
+    }
+    println!("================\n\n");
+
+    let test_cases = vec!["2 == 3", "2==3", "12+3/2==12-2121"];
+    for source in test_cases {
+        let mut scanner = Scanner {
+            source_code: source.to_string(),
+            current: 0,
+            line: 1,
+        };
+        let tokens = scanner.scan_tokens();
+        let mut parser = Parser::new(tokens);
+        let expr = parser.equality();
+        println!("==\nexpr: {expr:?}");
     }
 }
