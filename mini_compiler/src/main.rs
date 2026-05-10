@@ -552,59 +552,91 @@ impl Parser {
 
     fn primary(&mut self) -> Expr {
         if self.check(TokenTypes::NUMBER) || self.check(TokenTypes::IDENTIFIER) {
-            let operation = self.advance();
+            let literal = self.advance();
             return Expr::Literal {
-                identifier: operation.lexeme,
+                identifier: literal.lexeme,
+            };
+        } else if self.check(TokenTypes::LEFT_PAREN) {
+            let open_group = self.advance();
+            let right = self.equality();
+            if self.check(TokenTypes::RIGHT_PAREN) {
+                let _ = self.advance();
+                return Expr::Grouping {
+                    expression: Box::new(right),
+                };
+            } else {
+                panic!("expected closing for {}", open_group.lexeme);
+            }
+        } else if self.check(TokenTypes::TRUE)
+            || self.check(TokenTypes::FALSE)
+            || self.check(TokenTypes::NIL)
+        {
+            let key_word = self.advance();
+            return Expr::Literal {
+                identifier: key_word.lexeme,
+            };
+        } else if self.check(TokenTypes::STRING) {
+            let string = self.advance();
+            return Expr::Literal {
+                identifier: string.lexeme,
             };
         }
-        panic!("this should be primary");
+        panic!("failed.");
     }
 }
 
 fn main() {
-    let test_cases = vec![
-        "!=",
-        "!",
-        "<=",
-        "<",
-        ">=",
-        ">",
-        "==",
-        "=",
-        "12.2",
-        "12",
-        ".12",
-        "*",
-        "-",
-        "+ ",
-        ".",
-        "\n*12+3128-832=29.2 .12/21!=12",
-        "\"abcde\"",
-        "abc",
-        "var abc = if while\n true == false \")#$ Margarita if else @\"",
-        "var x = 10;",
-        "var x = 10;\nabc=\"\\n \\t if that all string\"\n// this is just a comment and will be skipped.\na = 2;",
-        "x.foo",
-        "vv.",
-        "abc/",
-        "12/221.2",
-        "12/ntnt/.",
-        "12.",
-    ];
-    for test in test_cases {
-        let source = test.to_string();
-        let mut scanner = Scanner {
-            source_code: source,
-            current: 0,
-            line: 1,
-        };
+    {
+        let test_cases = vec![
+            "!=",
+            "!",
+            "<=",
+            "<",
+            ">=",
+            ">",
+            "==",
+            "=",
+            "12.2",
+            "12",
+            ".12",
+            "*",
+            "-",
+            "+ ",
+            ".",
+            "\n*12+3128-832=29.2 .12/21!=12",
+            "\"abcde\"",
+            "abc",
+            "var abc = if while\n true == false \")#$ Margarita if else @\"",
+            "var x = 10;",
+            "var x = 10;\nabc=\"\\n \\t if that all string\"\n// this is just a comment and will be skipped.\na = 2;",
+            "x.foo",
+            "vv.",
+            "abc/",
+            "12/221.2",
+            "12/ntnt/.",
+            "12.",
+        ];
+        for test in test_cases {
+            let source = test.to_string();
+            let mut scanner = Scanner {
+                source_code: source,
+                current: 0,
+                line: 1,
+            };
 
-        let tokens = scanner.scan_tokens();
-        println!("Tokens: {:?}", tokens);
+            let tokens = scanner.scan_tokens();
+            println!("Tokens: {:?}", tokens);
+        }
     }
     println!("================\n\n");
 
-    let test_cases = vec!["2 == 3", "2==3", "12+3/2==12-2121"];
+    let test_cases = vec![
+        "2 == 3",
+        "2==3",
+        "12+3/2==12-2121",
+        "(4+5)*2",
+        "true == \"abcde\"",
+    ];
     for source in test_cases {
         let mut scanner = Scanner {
             source_code: source.to_string(),
