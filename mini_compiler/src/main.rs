@@ -1,3 +1,5 @@
+use std::panic;
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum TokenTypes {
     LEFT_PAREN,
@@ -453,6 +455,15 @@ enum Expr {
     Grouping {
         expression: Box<Expr>,
     },
+    Assign {
+        identifier: String,
+        right: Box<Expr>,
+    },
+    Logical {
+        left: Box<Expr>,
+        logical: Token,
+        right: Box<Expr>,
+    },
 }
 
 struct Parser {
@@ -479,6 +490,50 @@ impl Parser {
             return true;
         }
         false
+    }
+    fn assignment(&mut self) -> Expr {
+        let left = self.or();
+        if self.check(TokenTypes::EQUAL) {
+            match left {
+                Expr::Literal { identifier } => {
+                    let _ = self.advance();
+                    let right = self.assignment();
+                    return Expr::Assign {
+                        identifier,
+                        right: Box::new(right),
+                    };
+                }
+                _ => panic!("invalid "),
+            }
+        }
+        left
+    }
+
+    fn or(&mut self) -> Expr {
+        let left = self.and();
+        if self.check(TokenTypes::OR) {
+            let logical = self.advance();
+            let right = self.or();
+            return Expr::Logical {
+                left: Box::new(left),
+                logical: logical,
+                right: Box::new(right),
+            };
+        }
+        left
+    }
+    fn and(&mut self) -> Expr {
+        let left = self.equality();
+        if self.check(TokenTypes::AND) {
+            let logical = self.advance();
+            let right = self.and();
+            return Expr::Logical {
+                left: Box::new(left),
+                logical: logical,
+                right: Box::new(right),
+            };
+        }
+        left
     }
     fn equality(&mut self) -> Expr {
         let mut left = self.comparison();
@@ -636,6 +691,9 @@ fn main() {
         "12+3/2==12-2121",
         "(4+5)*2",
         "true == \"abcde\"",
+        "true and false",
+        "x = 3",
+        "x = 2 or true",
     ];
     for source in test_cases {
         let mut scanner = Scanner {
@@ -645,7 +703,7 @@ fn main() {
         };
         let tokens = scanner.scan_tokens();
         let mut parser = Parser::new(tokens);
-        let expr = parser.equality();
+        let expr = parser.assignment();
         println!("==\nexpr: {expr:?}");
     }
 }

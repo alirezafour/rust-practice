@@ -148,7 +148,7 @@ At the end of every conversation where the user learns a new concept, completes 
 ## Learning Tracker
 
 **Current phase:** Phase 2 — Parser (AST)
-**Next step:** Add assignment expression parsing (`identifier = expr`), then logical operators (`and`, `or`)
+**Next step:** Add statements (`Stmt` enum: expression, print, var, block, if, while, function, return)
 
 ### Phase 1 — Tokenizer (Lexer) ✅ COMPLETE
 - [x] `enum` definition and variants (`TokenType` + `Token` struct)
@@ -175,7 +175,7 @@ At the end of every conversation where the user learns a new concept, completes 
 - [x] Borrowing and references (`&self`, `&mut self`)
 - [x] Building and traversing a tree structure
 - [x] Writing a recursive descent parser with operator precedence
-- [~] Parsing expressions: literals (all types), unary, binary, grouping (done) — still need: assignment, logical, call, lambda
+- [~] Parsing expressions: literals (all types), unary, binary, grouping, assignment, logical (done) — still need: call, lambda
 - [ ] Parsing statements: expression, print, var, block, if, while, function, return
 
 ### Phase 3 — Tree-Walk Interpreter
@@ -204,6 +204,6 @@ At the end of every conversation where the user learns a new concept, completes 
 - User grasped the recursive descent parser structure quickly once the precedence chain was explained concretely with `2 + 3 * 4` example
 - Initially confused about which function calls which in the chain — fixed by emphasizing each level only talks to its immediate neighbor
 - `match_token_type` vs `check` distinction was tricky (advancing consumes the token, losing it) — switched to `check` + `advance` pattern
-- Grouping was intuitive — user correctly identified that `(expr)` belongs in `primary`
-- Initially tried `LEFT_BRACE` for grouping (confusing with blocks) — clarified that `{}` is for statements, `()` for expressions
-- Good instinct on naming: renamed `operation` to `literal`/`key_word`/`string` in primary without prompting
+- Assignment was tricky — initially tried checking for IDENTIFIER upfront and advancing, which consumed the token. Key insight: parse first, then check if `=` follows. The `match` on `Expr::Literal` to extract the identifier was a new Rust pattern for the user
+- `or`/`and` — initially tried reusing `Assign` variant for `or` instead of creating `Logical`. Also initially used `if` with `match` on Literal (same mistake as early assignment approach) before understanding that logical operators accept any expression on the left
+- Call stack visualization helped solidify understanding of how the precedence chain works end-to-end
