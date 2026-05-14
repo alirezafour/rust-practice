@@ -464,6 +464,15 @@ enum Expr {
         logical: Token,
         right: Box<Expr>,
     },
+    Call {
+        callee: Box<Expr>,
+        paren: Token,
+        arguments: Vec<Expr>,
+    },
+    Lambda {
+        params: Vec<String>,
+        body: Box<Stmt>,
+    },
 }
 
 struct Parser {
@@ -608,7 +617,7 @@ impl Parser {
         left
     }
     fn unary(&mut self) -> Expr {
-        let mut left = self.primary();
+        let mut left = self.call();
         if self.check(TokenTypes::Minus) || self.check(TokenTypes::Bang) {
             let operation = self.advance();
             let right = self.primary();
@@ -616,6 +625,30 @@ impl Parser {
                 operation: operation,
                 right: Box::new(right),
             };
+        }
+        left
+    }
+    fn call(&mut self) -> Expr {
+        let mut left = self.primary();
+        while self.check(TokenTypes::LeftParen) && !self.check(TokenTypes::Eof) {
+            if self.check_and_advance(TokenTypes::LeftParen) {
+                let paren = self.tokens[self.current - 1].clone();
+                let mut arguments = vec![];
+                while !self.check(TokenTypes::RightParen) && !self.check(TokenTypes::Eof) {
+                    let argument = self.assignment();
+                    arguments.push(argument);
+                    self.check_and_advance(TokenTypes::Comma);
+                }
+                if self.check_and_advance(TokenTypes::RightParen) {
+                    left = Expr::Call {
+                        callee: Box::new(left),
+                        paren: paren,
+                        arguments,
+                    };
+                } else {
+                    panic!("expected closing paren for function call.");
+                }
+            }
         }
         left
     }
@@ -649,67 +682,138 @@ impl Parser {
             return Expr::Literal {
                 identifier: string.lexeme,
             };
+        } else if self.check(TokenTypes::Fun) {
+            return self.parse_function_expr();
         }
         panic!("failed.");
     }
-
-    fn parse_statement(&mut self) -> Stmt {
-        if self.check_and_advance(TokenTypes::Print) {
-            let print_stmt = self.assignment();
-            return self.check_semicolon(Stmt::Print { expr: print_stmt });
-        } else if self.check_and_advance(TokenTypes::Var) {
-            let name = self.expect(TokenTypes::Identifier).lexeme;
-            let mut value = None;
-            if self.check_and_advance(TokenTypes::Equal) {
-                value = Some(self.assignment());
+    fn parse_function_expr(&mut self) -> Expr {
+        let left = self.advance();
+        if self.check_and_advance(TokenTypes::LeftParen) {
+            let mut arguments = vec![];
+            while !self.check(TokenTypes::RightParen) && !self.check(TokenTypes::Eof) {
+                arguments.push(self.advance().lexeme);
+                self.check_and_advance(TokenTypes::Comma);
             }
-            return self.check_semicolon(Stmt::Var { name, value });
-        } else if self.check_and_advance(TokenTypes::If) {
-            self.expect(TokenTypes::LeftParen);
-            let expr = self.assignment();
             self.expect(TokenTypes::RightParen);
-            let body = self.parse_statement();
-            let mut else_branch = None;
-            if self.check_and_advance(TokenTypes::Else) {
-                else_branch = Some(Box::new(self.parse_statement()));
-            }
-            return Stmt::If {
-                condition: expr,
-                body: Box::new(body),
-                else_branch: else_branch,
+            return Expr::Lambda {
+                params: arguments,
+                body: Box::new(self.parse_block()),
             };
-        } else if self.check_and_advance(TokenTypes::While) {
-            self.expect(TokenTypes::LeftParen);
-            let expr = self.assignment();
-            self.expect(TokenTypes::RightParen);
-            let body = self.parse_statement();
-            return Stmt::While {
-                condition: expr,
-                body: Box::new(body),
-            };
-        } else if self.check_and_advance(TokenTypes::LeftBrace) {
-            let mut data = vec![];
-            while !self.check(TokenTypes::Eof) && !self.check(TokenTypes::RightBrace) {
-                data.push(self.parse_statement());
-            }
-            self.expect(TokenTypes::RightBrace);
-            return Stmt::Block { data };
-        } else if self.check_and_advance(TokenTypes::Return) {
-            let return_value = self.assignment();
-            return self.check_semicolon(Stmt::Return {
-                value: return_value,
-            });
         }
-
-        let expr = self.assignment();
-        return self.check_semicolon(Stmt::Expression { expr });
+        Expr::Literal {
+            identifier: left.lexeme,
+        }
     }
+
     fn check_semicolon(&mut self, statement: Stmt) -> Stmt {
         if self.check(TokenTypes::Semicolon) {
             let _ = self.advance();
             return statement;
         }
         panic!("expected semicolon.")
+    }
+    fn parse_statement(&mut self) -> Stmt {
+        if self.check_and_advance(TokenTypes::Print) {
+            return self.parse_print();
+        } else if self.check_and_advance(TokenTypes::Var) {
+            return self.parse_var();
+        } else if self.check_and_advance(TokenTypes::If) {
+            return self.parse_if();
+        } else if self.check_and_advance(TokenTypes::While) {
+            return self.parse_while();
+        } else if self.check(TokenTypes::LeftBrace) {
+            return self.parse_block();
+        } else if self.check_and_advance(TokenTypes::Return) {
+            return self.parse_return();
+        } else if self.check_and_advance(TokenTypes::Fun) {
+            return self.parse_function();
+        }
+        return self.parse_expr();
+    }
+    fn parse_expr(&mut self) -> Stmt {
+        let expr = self.assignment();
+        return self.check_semicolon(Stmt::Expression { expr });
+    }
+    fn parse_var(&mut self) -> Stmt {
+        let name = self.expect(TokenTypes::Identifier).lexeme;
+        let mut value = None;
+        if self.check_and_advance(TokenTypes::Equal) {
+            value = Some(self.assignment());
+        }
+        return self.check_semicolon(Stmt::Var { name, value });
+    }
+    fn parse_print(&mut self) -> Stmt {
+        let print_stmt = self.assignment();
+        return self.check_semicolon(Stmt::Print { expr: print_stmt });
+    }
+    fn parse_if(&mut self) -> Stmt {
+        self.expect(TokenTypes::LeftParen);
+        let expr = self.assignment();
+        self.expect(TokenTypes::RightParen);
+        let body = self.parse_statement();
+        let mut else_branch = None;
+        if self.check_and_advance(TokenTypes::Else) {
+            else_branch = Some(Box::new(self.parse_statement()));
+        }
+        return Stmt::If {
+            condition: expr,
+            body: Box::new(body),
+            else_branch: else_branch,
+        };
+    }
+    fn parse_while(&mut self) -> Stmt {
+        self.expect(TokenTypes::LeftParen);
+        let expr = self.assignment();
+        self.expect(TokenTypes::RightParen);
+        let body = self.parse_statement();
+        return Stmt::While {
+            condition: expr,
+            body: Box::new(body),
+        };
+    }
+    fn parse_block(&mut self) -> Stmt {
+        if !self.check_and_advance(TokenTypes::LeftBrace) {
+            panic!("wrong call to parse block.");
+        }
+        let mut data = vec![];
+        while !self.check(TokenTypes::Eof) && !self.check(TokenTypes::RightBrace) {
+            data.push(self.parse_statement());
+        }
+        self.expect(TokenTypes::RightBrace);
+        return Stmt::Block { data };
+    }
+    fn parse_return(&mut self) -> Stmt {
+        if self.check_and_advance(TokenTypes::Semicolon) {
+            return Stmt::Return { value: None };
+        }
+        let return_value = self.assignment();
+        return self.check_semicolon(Stmt::Return {
+            value: Some(return_value),
+        });
+    }
+    fn parse_function(&mut self) -> Stmt {
+        let name = self.expect(TokenTypes::Identifier).lexeme;
+        self.expect(TokenTypes::LeftParen);
+        let mut params = vec![];
+        while !self.check(TokenTypes::RightParen) && !self.check(TokenTypes::Eof) {
+            if self.check(TokenTypes::Identifier) {
+                params.push(self.advance().lexeme);
+                self.check_and_advance(TokenTypes::Comma);
+            } else {
+                panic!(
+                    "expected parameter name. but see {:?}",
+                    self.advance().lexeme
+                );
+            }
+        }
+        self.expect(TokenTypes::RightParen);
+        let body = self.parse_block();
+        return Stmt::Function {
+            name: name,
+            params: params,
+            body: Box::new(body),
+        };
     }
 }
 
@@ -738,9 +842,10 @@ enum Stmt {
         else_branch: Option<Box<Stmt>>,
     },
     Return {
-        value: Expr,
+        value: Option<Expr>,
     },
     Function {
+        name: String,
         params: Vec<String>,
         body: Box<Stmt>,
     },
@@ -806,6 +911,9 @@ fn main() {
             "true and false",
             "x = 3",
             "x = 2 or true",
+            "foo(1)(2)",
+            "foo(1,2)",
+            "fun(x){return 0;}",
         ];
         for source in test_cases {
             let mut scanner = Scanner {
@@ -835,6 +943,10 @@ fn main() {
             "while(true) var x;",
             "{var abc = 1;}",
             "while (true) { 2+2;}",
+            "return;",
+            "return a*2+2;",
+            "fun foo(a,b){ return true;}",
+            "var x = fun(x){var x = 0;return x;};",
         ];
         for source in test_cases {
             let mut scanner = Scanner {

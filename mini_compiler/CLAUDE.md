@@ -147,8 +147,8 @@ At the end of every conversation where the user learns a new concept, completes 
 
 ## Learning Tracker
 
-**Current phase:** Phase 2 — Parser (AST)
-**Next step:** Add statements (`Stmt` enum: expression, print, var, block, if, while, function, return)
+**Current phase:** Phase 3 — Tree-Walk Interpreter
+**Next step:** Define `LoxValue` enum and write `evaluate(&Expr) -> LoxValue` for expression evaluation
 
 ### Phase 1 — Tokenizer (Lexer) ✅ COMPLETE
 - [x] `enum` definition and variants (`TokenType` + `Token` struct)
@@ -175,8 +175,10 @@ At the end of every conversation where the user learns a new concept, completes 
 - [x] Borrowing and references (`&self`, `&mut self`)
 - [x] Building and traversing a tree structure
 - [x] Writing a recursive descent parser with operator precedence
-- [~] Parsing expressions: literals (all types), unary, binary, grouping, assignment, logical (done) — still need: call, lambda
-- [ ] Parsing statements: expression, print, var, block, if, while, function, return
+- [x] Parsing expressions: literals (all types), unary, binary, grouping, assignment, logical, call, lambda
+- [x] Parsing statements: expression, print, var, block, if, while, return, function
+- [x] Refactored `parse_statement` into clean dispatcher with individual parse methods
+- [x] `return;` without value returns `Option<Expr>` (None = nil)
 
 ### Phase 3 — Tree-Walk Interpreter
 - [ ] Recursion on enum variants
@@ -207,3 +209,12 @@ At the end of every conversation where the user learns a new concept, completes 
 - Assignment was tricky — initially tried checking for IDENTIFIER upfront and advancing, which consumed the token. Key insight: parse first, then check if `=` follows. The `match` on `Expr::Literal` to extract the identifier was a new Rust pattern for the user
 - `or`/`and` — initially tried reusing `Assign` variant for `or` instead of creating `Logical`. Also initially used `if` with `match` on Literal (same mistake as early assignment approach) before understanding that logical operators accept any expression on the left
 - Call stack visualization helped solidify understanding of how the precedence chain works end-to-end
+- Statement parsing clicked quickly — the pattern of `check keyword → parse contents → expect semicolon` was intuitive
+- Extracted `check_semicolon` and `expect` helpers without prompting — good instinct for reducing repetition
+- `expect` auto-generates error messages from `{:?}` on token type — clever use of Debug derive
+- Renamed all `TokenTypes` variants from SCREAMING_SNAKE to PascalCase — more idiomatic Rust
+- `var x;` bug: `expect` was called followed by another `advance()`, consuming two tokens instead of one. Lesson: `expect` already advances, don't double-advance
+- Call expression: initially used `if` instead of `while`, which broke left-associativity for chained calls like `foo(1)(2)`. Redundant `check_and_advance` inside `while` — works but unnecessary nesting
+- Lambda: initially had `body: Vec<Stmt>` in the variant, changed to `Box<Stmt>` to reuse existing `parse_statement()` → `parse_block()` pattern
+- Function statement: initially forgot to capture the function name — jumped straight to `(` after consuming `Fun`. Fixed by adding `expect(Identifier)` first
+- `return;` without value: initially always called `self.assignment()` which panicked on `;`. Fixed by checking for `;` first and returning `None`
