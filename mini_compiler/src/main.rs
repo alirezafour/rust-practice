@@ -2,45 +2,45 @@ use std::panic;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum TokenTypes {
-    LEFT_PAREN,
-    RIGHT_PAREN,
-    LEFT_BRACE,
-    RIGHT_BRACE,
-    COMMA,
-    DOT,
-    MINUS,
-    PLUS,
-    SEMICOLON,
-    SLASH,
-    STAR,
-    BANG,
-    BANG_EQUAL,
-    EQUAL,
-    EQUAL_EQUAL,
-    GREATER,
-    GREATER_EQUAL,
-    LESS,
-    LESS_EQUAL,
-    IDENTIFIER,
-    STRING,
-    NUMBER,
-    AND,
-    CLASS,
-    ELSE,
-    FALSE,
-    FUN,
-    FOR,
-    IF,
-    NIL,
-    OR,
-    PRINT,
-    RETURN,
-    SUPER,
-    THIS,
-    TRUE,
-    VAR,
-    WHILE,
-    EOF,
+    LeftParen,
+    RightParen,
+    LeftBrace,
+    RightBrace,
+    Comma,
+    Dot,
+    Minus,
+    Plus,
+    Semicolon,
+    Slash,
+    Star,
+    Bang,
+    BangEqual,
+    Equal,
+    EqualEqual,
+    Greater,
+    GreaterEqual,
+    Less,
+    LessEqual,
+    Identifier,
+    String,
+    Number,
+    And,
+    Class,
+    Else,
+    False,
+    Fun,
+    For,
+    If,
+    Nil,
+    Or,
+    Print,
+    Return,
+    Super,
+    This,
+    True,
+    Var,
+    While,
+    Eof,
 }
 
 #[derive(Debug, Clone)]
@@ -70,7 +70,7 @@ impl Scanner {
             match c {
                 '{' => {
                     let token = Token {
-                        token_type: TokenTypes::LEFT_BRACE,
+                        token_type: TokenTypes::LeftBrace,
                         lexeme: "{".to_string(),
                         line: self.line,
                     };
@@ -78,7 +78,7 @@ impl Scanner {
                 }
                 '-' => {
                     let token = Token {
-                        token_type: TokenTypes::MINUS,
+                        token_type: TokenTypes::Minus,
                         lexeme: "-".to_string(),
                         line: self.line,
                     };
@@ -86,7 +86,7 @@ impl Scanner {
                 }
                 '+' => {
                     let token = Token {
-                        token_type: TokenTypes::PLUS,
+                        token_type: TokenTypes::Plus,
                         lexeme: "+".to_string(),
                         line: self.line,
                     };
@@ -94,7 +94,7 @@ impl Scanner {
                 }
                 ';' => {
                     let token = Token {
-                        token_type: TokenTypes::SEMICOLON,
+                        token_type: TokenTypes::Semicolon,
                         lexeme: ";".to_string(),
                         line: self.line,
                     };
@@ -102,7 +102,7 @@ impl Scanner {
                 }
                 '*' => {
                     let token = Token {
-                        token_type: TokenTypes::STAR,
+                        token_type: TokenTypes::Star,
                         lexeme: "*".to_string(),
                         line: self.line,
                     };
@@ -110,7 +110,7 @@ impl Scanner {
                 }
                 ',' => {
                     let token = Token {
-                        token_type: TokenTypes::COMMA,
+                        token_type: TokenTypes::Comma,
                         lexeme: ",".to_string(),
                         line: self.line,
                     };
@@ -118,7 +118,7 @@ impl Scanner {
                 }
                 '}' => {
                     let token = Token {
-                        token_type: TokenTypes::RIGHT_BRACE,
+                        token_type: TokenTypes::RightBrace,
                         lexeme: "}".to_string(),
                         line: self.line,
                     };
@@ -126,7 +126,7 @@ impl Scanner {
                 }
                 '(' => {
                     let token = Token {
-                        token_type: TokenTypes::LEFT_PAREN,
+                        token_type: TokenTypes::LeftParen,
                         lexeme: "(".to_string(),
                         line: self.line,
                     };
@@ -134,7 +134,7 @@ impl Scanner {
                 }
                 ')' => {
                     let token = Token {
-                        token_type: TokenTypes::RIGHT_PAREN,
+                        token_type: TokenTypes::RightParen,
                         lexeme: ")".to_string(),
                         line: self.line,
                     };
@@ -146,20 +146,20 @@ impl Scanner {
                             // !=
                             chars.next();
                             tokens.push(Token {
-                                token_type: TokenTypes::BANG_EQUAL,
+                                token_type: TokenTypes::BangEqual,
                                 lexeme: "!=".to_string(),
                                 line: self.line,
                             });
                         } else {
                             tokens.push(Token {
-                                token_type: TokenTypes::BANG,
+                                token_type: TokenTypes::Bang,
                                 lexeme: "!".to_string(),
                                 line: self.line,
                             });
                         }
                     } else {
                         tokens.push(Token {
-                            token_type: TokenTypes::BANG,
+                            token_type: TokenTypes::Bang,
                             lexeme: "!".to_string(),
                             line: self.line,
                         });
@@ -174,20 +174,20 @@ impl Scanner {
                             // <=
                             chars.next();
                             tokens.push(Token {
-                                token_type: TokenTypes::LESS_EQUAL,
+                                token_type: TokenTypes::LessEqual,
                                 lexeme: "<=".to_string(),
                                 line: self.line,
                             });
                         } else {
                             tokens.push(Token {
-                                token_type: TokenTypes::LESS,
+                                token_type: TokenTypes::Less,
                                 lexeme: "<".to_string(),
                                 line: self.line,
                             });
                         }
                     } else {
                         tokens.push(Token {
-                            token_type: TokenTypes::LESS,
+                            token_type: TokenTypes::Less,
                             lexeme: "<".to_string(),
                             line: self.line,
                         });
@@ -202,20 +202,20 @@ impl Scanner {
                             // >=
                             chars.next();
                             tokens.push(Token {
-                                token_type: TokenTypes::GREATER_EQUAL,
+                                token_type: TokenTypes::GreaterEqual,
                                 lexeme: ">=".to_string(),
                                 line: self.line,
                             });
                         } else {
                             tokens.push(Token {
-                                token_type: TokenTypes::GREATER,
+                                token_type: TokenTypes::Greater,
                                 lexeme: ">".to_string(),
                                 line: self.line,
                             });
                         }
                     } else {
                         tokens.push(Token {
-                            token_type: TokenTypes::GREATER,
+                            token_type: TokenTypes::Greater,
                             lexeme: ">".to_string(),
                             line: self.line,
                         });
@@ -227,20 +227,20 @@ impl Scanner {
                             // ==
                             chars.next();
                             tokens.push(Token {
-                                token_type: TokenTypes::EQUAL_EQUAL,
+                                token_type: TokenTypes::EqualEqual,
                                 lexeme: "==".to_string(),
                                 line: self.line,
                             });
                         } else {
                             tokens.push(Token {
-                                token_type: TokenTypes::EQUAL,
+                                token_type: TokenTypes::Equal,
                                 lexeme: "=".to_string(),
                                 line: self.line,
                             });
                         }
                     } else {
                         tokens.push(Token {
-                            token_type: TokenTypes::EQUAL,
+                            token_type: TokenTypes::Equal,
                             lexeme: "=".to_string(),
                             line: self.line,
                         });
@@ -260,20 +260,20 @@ impl Scanner {
                                 }
                             }
                             tokens.push(Token {
-                                token_type: TokenTypes::NUMBER,
+                                token_type: TokenTypes::Number,
                                 lexeme: number_str,
                                 line: self.line,
                             });
                         } else {
                             tokens.push(Token {
-                                token_type: TokenTypes::DOT,
+                                token_type: TokenTypes::Dot,
                                 lexeme: ".".to_string(),
                                 line: self.line,
                             });
                         }
                     } else {
                         tokens.push(Token {
-                            token_type: TokenTypes::DOT,
+                            token_type: TokenTypes::Dot,
                             lexeme: ".".to_string(),
                             line: self.line,
                         });
@@ -318,13 +318,13 @@ impl Scanner {
                     }
                     if is_float {
                         tokens.push(Token {
-                            token_type: TokenTypes::NUMBER,
+                            token_type: TokenTypes::Number,
                             lexeme: number_str,
                             line: self.line,
                         });
                     } else {
                         tokens.push(Token {
-                            token_type: TokenTypes::NUMBER,
+                            token_type: TokenTypes::Number,
                             lexeme: number_str,
                             line: self.line,
                         });
@@ -342,23 +342,23 @@ impl Scanner {
                         }
                     }
                     let token_type = match &identifier_str[..] {
-                        "and" => TokenTypes::AND,
-                        "or" => TokenTypes::OR,
-                        "class" => TokenTypes::CLASS,
-                        "if" => TokenTypes::IF,
-                        "else" => TokenTypes::ELSE,
-                        "true" => TokenTypes::TRUE,
-                        "false" => TokenTypes::FALSE,
-                        "fun" => TokenTypes::FUN,
-                        "for" => TokenTypes::FOR,
-                        "while" => TokenTypes::WHILE,
-                        "nil" => TokenTypes::NIL,
-                        "print" => TokenTypes::PRINT,
-                        "return" => TokenTypes::RETURN,
-                        "super" => TokenTypes::SUPER,
-                        "this" => TokenTypes::THIS,
-                        "var" => TokenTypes::VAR,
-                        _ => TokenTypes::IDENTIFIER,
+                        "and" => TokenTypes::And,
+                        "or" => TokenTypes::Or,
+                        "class" => TokenTypes::Class,
+                        "if" => TokenTypes::If,
+                        "else" => TokenTypes::Else,
+                        "true" => TokenTypes::True,
+                        "false" => TokenTypes::False,
+                        "fun" => TokenTypes::Fun,
+                        "for" => TokenTypes::For,
+                        "while" => TokenTypes::While,
+                        "nil" => TokenTypes::Nil,
+                        "print" => TokenTypes::Print,
+                        "return" => TokenTypes::Return,
+                        "super" => TokenTypes::Super,
+                        "this" => TokenTypes::This,
+                        "var" => TokenTypes::Var,
+                        _ => TokenTypes::Identifier,
                     };
                     tokens.push(Token {
                         token_type: token_type,
@@ -395,7 +395,7 @@ impl Scanner {
                         panic!("Unterminated string literal");
                     }
                     tokens.push(Token {
-                        token_type: TokenTypes::STRING,
+                        token_type: TokenTypes::String,
                         lexeme: string_literal,
                         line: self.line,
                     });
@@ -411,14 +411,14 @@ impl Scanner {
                             }
                         } else {
                             tokens.push(Token {
-                                token_type: TokenTypes::SLASH,
+                                token_type: TokenTypes::Slash,
                                 lexeme: "/".to_string(),
                                 line: self.line,
                             });
                         }
                     } else {
                         tokens.push(Token {
-                            token_type: TokenTypes::SLASH,
+                            token_type: TokenTypes::Slash,
                             lexeme: '/'.to_string(),
                             line: self.line,
                         });
@@ -430,7 +430,7 @@ impl Scanner {
             }
         }
         tokens.push(Token {
-            token_type: TokenTypes::EOF,
+            token_type: TokenTypes::Eof,
             lexeme: "".to_string(),
             line: self.line,
         });
@@ -491,9 +491,26 @@ impl Parser {
         }
         false
     }
+    fn check_and_advance(&mut self, token_type: TokenTypes) -> bool {
+        if self.check(token_type) {
+            let _ = self.advance();
+            true
+        } else {
+            false
+        }
+    }
+    fn expect(&mut self, token_type: TokenTypes) -> Token {
+        let message = format!("expected: {:?}.", &token_type);
+        if self.check(token_type) {
+            return self.advance();
+        } else {
+            panic!("{}", message);
+        }
+    }
+
     fn assignment(&mut self) -> Expr {
         let left = self.or();
-        if self.check(TokenTypes::EQUAL) {
+        if self.check(TokenTypes::Equal) {
             match left {
                 Expr::Literal { identifier } => {
                     let _ = self.advance();
@@ -508,10 +525,9 @@ impl Parser {
         }
         left
     }
-
     fn or(&mut self) -> Expr {
         let left = self.and();
-        if self.check(TokenTypes::OR) {
+        if self.check(TokenTypes::Or) {
             let logical = self.advance();
             let right = self.or();
             return Expr::Logical {
@@ -524,7 +540,7 @@ impl Parser {
     }
     fn and(&mut self) -> Expr {
         let left = self.equality();
-        if self.check(TokenTypes::AND) {
+        if self.check(TokenTypes::And) {
             let logical = self.advance();
             let right = self.and();
             return Expr::Logical {
@@ -537,7 +553,7 @@ impl Parser {
     }
     fn equality(&mut self) -> Expr {
         let mut left = self.comparison();
-        while self.check(TokenTypes::EQUAL_EQUAL) || self.check(TokenTypes::BANG_EQUAL) {
+        while self.check(TokenTypes::EqualEqual) || self.check(TokenTypes::BangEqual) {
             let operation = self.advance();
             let right = self.comparison();
             left = Expr::Binary {
@@ -550,10 +566,10 @@ impl Parser {
     }
     fn comparison(&mut self) -> Expr {
         let mut left = self.term();
-        while self.check(TokenTypes::LESS)
-            || self.check(TokenTypes::LESS_EQUAL)
-            || self.check(TokenTypes::GREATER)
-            || self.check(TokenTypes::GREATER_EQUAL)
+        while self.check(TokenTypes::Less)
+            || self.check(TokenTypes::LessEqual)
+            || self.check(TokenTypes::Greater)
+            || self.check(TokenTypes::GreaterEqual)
         {
             let operation = self.advance();
             let right = self.term();
@@ -565,10 +581,9 @@ impl Parser {
         }
         left
     }
-
     fn term(&mut self) -> Expr {
         let mut left = self.factor();
-        while self.check(TokenTypes::PLUS) || self.check(TokenTypes::MINUS) {
+        while self.check(TokenTypes::Plus) || self.check(TokenTypes::Minus) {
             let operation = self.advance();
             let right = self.factor();
             left = Expr::Binary {
@@ -581,7 +596,7 @@ impl Parser {
     }
     fn factor(&mut self) -> Expr {
         let mut left = self.unary();
-        while self.check(TokenTypes::STAR) || self.check(TokenTypes::SLASH) {
+        while self.check(TokenTypes::Star) || self.check(TokenTypes::Slash) {
             let operation = self.advance();
             let right = self.unary();
             left = Expr::Binary {
@@ -594,7 +609,7 @@ impl Parser {
     }
     fn unary(&mut self) -> Expr {
         let mut left = self.primary();
-        if self.check(TokenTypes::MINUS) || self.check(TokenTypes::BANG) {
+        if self.check(TokenTypes::Minus) || self.check(TokenTypes::Bang) {
             let operation = self.advance();
             let right = self.primary();
             left = Expr::Unary {
@@ -604,17 +619,16 @@ impl Parser {
         }
         left
     }
-
     fn primary(&mut self) -> Expr {
-        if self.check(TokenTypes::NUMBER) || self.check(TokenTypes::IDENTIFIER) {
+        if self.check(TokenTypes::Number) || self.check(TokenTypes::Identifier) {
             let literal = self.advance();
             return Expr::Literal {
                 identifier: literal.lexeme,
             };
-        } else if self.check(TokenTypes::LEFT_PAREN) {
+        } else if self.check(TokenTypes::LeftParen) {
             let open_group = self.advance();
             let right = self.equality();
-            if self.check(TokenTypes::RIGHT_PAREN) {
+            if self.check(TokenTypes::RightParen) {
                 let _ = self.advance();
                 return Expr::Grouping {
                     expression: Box::new(right),
@@ -622,15 +636,15 @@ impl Parser {
             } else {
                 panic!("expected closing for {}", open_group.lexeme);
             }
-        } else if self.check(TokenTypes::TRUE)
-            || self.check(TokenTypes::FALSE)
-            || self.check(TokenTypes::NIL)
+        } else if self.check(TokenTypes::True)
+            || self.check(TokenTypes::False)
+            || self.check(TokenTypes::Nil)
         {
             let key_word = self.advance();
             return Expr::Literal {
                 identifier: key_word.lexeme,
             };
-        } else if self.check(TokenTypes::STRING) {
+        } else if self.check(TokenTypes::String) {
             let string = self.advance();
             return Expr::Literal {
                 identifier: string.lexeme,
@@ -638,6 +652,103 @@ impl Parser {
         }
         panic!("failed.");
     }
+
+    fn parse_statement(&mut self) -> Stmt {
+        if self.check_and_advance(TokenTypes::Print) {
+            let print_stmt = self.assignment();
+            return self.check_semicolon(Stmt::Print { expr: print_stmt });
+        } else if self.check_and_advance(TokenTypes::Var) {
+            let name = self.expect(TokenTypes::Identifier).lexeme;
+            let mut value = None;
+            if self.check_and_advance(TokenTypes::Equal) {
+                value = Some(self.assignment());
+            }
+            return self.check_semicolon(Stmt::Var { name, value });
+        } else if self.check_and_advance(TokenTypes::If) {
+            self.expect(TokenTypes::LeftParen);
+            let expr = self.assignment();
+            self.expect(TokenTypes::RightParen);
+            let body = self.parse_statement();
+            let mut else_branch = None;
+            if self.check_and_advance(TokenTypes::Else) {
+                else_branch = Some(Box::new(self.parse_statement()));
+            }
+            return Stmt::If {
+                condition: expr,
+                body: Box::new(body),
+                else_branch: else_branch,
+            };
+        } else if self.check_and_advance(TokenTypes::While) {
+            self.expect(TokenTypes::LeftParen);
+            let expr = self.assignment();
+            self.expect(TokenTypes::RightParen);
+            let body = self.parse_statement();
+            return Stmt::While {
+                condition: expr,
+                body: Box::new(body),
+            };
+        } else if self.check_and_advance(TokenTypes::LeftBrace) {
+            let mut data = vec![];
+            while !self.check(TokenTypes::Eof) && !self.check(TokenTypes::RightBrace) {
+                data.push(self.parse_statement());
+            }
+            self.expect(TokenTypes::RightBrace);
+            return Stmt::Block { data };
+        } else if self.check_and_advance(TokenTypes::Return) {
+            let return_value = self.assignment();
+            return self.check_semicolon(Stmt::Return {
+                value: return_value,
+            });
+        }
+
+        let expr = self.assignment();
+        return self.check_semicolon(Stmt::Expression { expr });
+    }
+    fn check_semicolon(&mut self, statement: Stmt) -> Stmt {
+        if self.check(TokenTypes::Semicolon) {
+            let _ = self.advance();
+            return statement;
+        }
+        panic!("expected semicolon.")
+    }
+}
+
+#[derive(Debug)]
+enum Stmt {
+    Block {
+        data: Vec<Stmt>,
+    },
+    Var {
+        name: String,
+        value: Option<Expr>,
+    },
+    Expression {
+        expr: Expr,
+    },
+    Print {
+        expr: Expr,
+    },
+    While {
+        condition: Expr,
+        body: Box<Stmt>,
+    },
+    If {
+        condition: Expr,
+        body: Box<Stmt>,
+        else_branch: Option<Box<Stmt>>,
+    },
+    Return {
+        value: Expr,
+    },
+    Function {
+        params: Vec<String>,
+        body: Box<Stmt>,
+    },
+    Class {
+        name: String,
+        functions: Box<Stmt>,
+        members: Vec<String>,
+    },
 }
 
 fn main() {
@@ -683,27 +794,58 @@ fn main() {
             println!("Tokens: {:?}", tokens);
         }
     }
-    println!("================\n\n");
+    {
+        println!("================\n\n");
 
-    let test_cases = vec![
-        "2 == 3",
-        "2==3",
-        "12+3/2==12-2121",
-        "(4+5)*2",
-        "true == \"abcde\"",
-        "true and false",
-        "x = 3",
-        "x = 2 or true",
-    ];
-    for source in test_cases {
-        let mut scanner = Scanner {
-            source_code: source.to_string(),
-            current: 0,
-            line: 1,
-        };
-        let tokens = scanner.scan_tokens();
-        let mut parser = Parser::new(tokens);
-        let expr = parser.assignment();
-        println!("==\nexpr: {expr:?}");
+        let test_cases = vec![
+            "2 == 3",
+            "2==3",
+            "12+3/2==12-2121",
+            "(4+5)*2",
+            "true == \"abcde\"",
+            "true and false",
+            "x = 3",
+            "x = 2 or true",
+        ];
+        for source in test_cases {
+            let mut scanner = Scanner {
+                source_code: source.to_string(),
+                current: 0,
+                line: 1,
+            };
+            let tokens = scanner.scan_tokens();
+            let mut parser = Parser::new(tokens);
+            let expr = parser.assignment();
+            println!("==\nexpr: {expr:?}");
+        }
+    }
+
+    {
+        println!("===\nStatements:\n===");
+        let test_cases = vec![
+            "print 2 + 3;",
+            "print (4+5)*2;",
+            "print true == \"abcde\";",
+            "print true and false;",
+            "2+2;",
+            "var x = 2 + 3;",
+            "var x;",
+            "var check = true and true;",
+            "if (true) print 1;",
+            "while(true) var x;",
+            "{var abc = 1;}",
+            "while (true) { 2+2;}",
+        ];
+        for source in test_cases {
+            let mut scanner = Scanner {
+                source_code: source.to_string(),
+                current: 0,
+                line: 1,
+            };
+            let tokens = scanner.scan_tokens();
+            let mut parser = Parser::new(tokens);
+            let stmt = parser.parse_statement();
+            println!("==\nstmt: {stmt:?}");
+        }
     }
 }
