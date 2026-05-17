@@ -396,7 +396,7 @@ impl Scanner {
                     }
                     tokens.push(Token {
                         token_type: TokenTypes::String,
-                        lexeme: string_literal,
+                        lexeme: format!("\"{}\"", string_literal),
                         line: self.line,
                     });
                 }
@@ -713,6 +713,13 @@ impl Parser {
         }
         panic!("expected semicolon.")
     }
+    fn parse_porgram(&mut self) -> Vec<Stmt> {
+        let mut v = Vec::new();
+        while !self.check(TokenTypes::Eof) {
+            v.push(self.parse_statement());
+        }
+        v
+    }
     fn parse_statement(&mut self) -> Stmt {
         if self.check_and_advance(TokenTypes::Print) {
             return self.parse_print();
@@ -902,6 +909,13 @@ struct Interpreter {
 }
 
 impl Interpreter {
+    fn new() -> Self {
+        Interpreter {
+            environment: Environment {
+                map: HashMap::new(),
+            },
+        }
+    }
     fn evaluate(&self, expr: &Expr) -> LoxValue {
         match expr {
             Expr::Literal { identifier } => match identifier.as_str() {
@@ -962,6 +976,38 @@ impl Interpreter {
             }
             Stmt::Print { expr } => {
                 println!("{}", self.evaluate(expr));
+            }
+            Stmt::Expression { expr } => {
+                self.evaluate(expr);
+            }
+            Stmt::If {
+                condition,
+                body,
+                else_branch,
+            } => {
+                let res = self.evaluate(condition);
+                if self.is_truthy(&res) {
+                    self.execute(body);
+                } else {
+                    match else_branch {
+                        Some(body) => self.execute(body),
+                        None => {}
+                    }
+                }
+            }
+            Stmt::While { condition, body } => {
+                let mut res = self.evaluate(condition);
+                while self.is_truthy(&res) {
+                    self.execute(body);
+                    res = self.evaluate(condition);
+                }
+            }
+            Stmt::Block { data } => {
+                let old_env = self.environment.map.clone();
+                for stmt in data {
+                    self.execute(stmt);
+                }
+                self.environment.map = old_env;
             }
             _ => panic!("I didn't like it"),
         }
@@ -1113,7 +1159,6 @@ fn main() {
             println!("==\nexpr: {expr:?}");
         }
     }
-
     {
         println!("===\nStatements:\n===");
         let test_cases = vec![
@@ -1144,6 +1189,29 @@ fn main() {
             let mut parser = Parser::new(tokens);
             let stmt = parser.parse_statement();
             println!("==\nstmt: {stmt:?}");
+        }
+    }
+    {
+        println!("===\nInterpreter:\n===");
+        let test_cases = vec![
+            "print 2 + 3;\nprint (4+5)*2;\nprint true;\nvar x = 2 + 3;\nvar check = true;\nif (check) print check;",
+            "if (false) print \"this shouldn't print\"; else print \"this should print\";",
+            "{var abc = 1;print abc;}",
+        ];
+        for source in test_cases {
+            let mut scanner = Scanner {
+                source_code: source.to_string(),
+                current: 0,
+                line: 1,
+            };
+            let tokens = scanner.scan_tokens();
+
+            let mut parser = Parser::new(tokens);
+            let stmts = parser.parse_porgram();
+            let mut inter = Interpreter::new();
+            for stmt in stmts {
+                inter.execute(&stmt);
+            }
         }
     }
 }
