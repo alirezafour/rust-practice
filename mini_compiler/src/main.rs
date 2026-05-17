@@ -916,7 +916,7 @@ impl Interpreter {
             },
         }
     }
-    fn evaluate(&self, expr: &Expr) -> LoxValue {
+    fn evaluate(&mut self, expr: &Expr) -> LoxValue {
         match expr {
             Expr::Literal { identifier } => match identifier.as_str() {
                 "true" => return LoxValue::Bool(true),
@@ -957,6 +957,31 @@ impl Interpreter {
             Expr::Grouping { expression } => {
                 return self.evaluate(expression);
             }
+            Expr::Assign { identifier, right } => {
+                let right_val = self.evaluate(right);
+                let iter = self.environment.map.get_mut(identifier);
+                match iter {
+                    Some(v) => *v = right_val.clone(),
+                    None => panic!("identifier not defined."),
+                }
+                return right_val;
+            }
+            Expr::Logical {
+                left,
+                logical,
+                right,
+            } => {
+                let left_val = self.evaluate(left);
+                let bool_left = self.is_truthy(&left_val);
+                match (bool_left, &logical.token_type) {
+                    (true, TokenTypes::Or) | (false, TokenTypes::And) => return left_val,
+                    (true, TokenTypes::And) | (false, TokenTypes::Or) => {
+                        let right_val = self.evaluate(right);
+                        return right_val;
+                    }
+                    _ => panic!("abc"),
+                }
+            }
             _ => {
                 panic!("not supported yet");
             }
@@ -966,13 +991,11 @@ impl Interpreter {
     fn execute(&mut self, stmt: &Stmt) {
         match stmt {
             Stmt::Var { name, value } => {
-                self.environment.map.insert(
-                    name.to_string(),
-                    value
-                        .as_ref()
-                        .map(|v| self.evaluate(v))
-                        .unwrap_or(LoxValue::Nil),
-                );
+                let val = value
+                    .as_ref()
+                    .map(|v| self.evaluate(v))
+                    .unwrap_or(LoxValue::Nil);
+                self.environment.map.insert(name.to_string(), val);
             }
             Stmt::Print { expr } => {
                 println!("{}", self.evaluate(expr));
@@ -1197,8 +1220,16 @@ fn main() {
             "print 2 + 3;\nprint (4+5)*2;\nprint true;\nvar x = 2 + 3;\nvar check = true;\nif (check) print check;",
             "if (false) print \"this shouldn't print\"; else print \"this should print\";",
             "{var abc = 1;print abc;}",
+            "var a = true; a = false; print a;",
+            "print \"hello\" and true;\nprint true or false;\nprint false or \"hello world.\";",
+            // phase 5 will fix it
+            // "var a = true; while(a){a=false;print \"one time print\";}",
+            //
         ];
+        let mut count = 0;
         for source in test_cases {
+            count += 1;
+            println!("\ntest {}: \n===", &count);
             let mut scanner = Scanner {
                 source_code: source.to_string(),
                 current: 0,

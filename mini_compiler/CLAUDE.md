@@ -151,7 +151,7 @@ At the end of every conversation where the user learns a new concept, completes 
 ## Learning Tracker
 
 **Current phase:** Phase 3 — Tree-Walk Interpreter
-**Next step:** Add `Expression`, `Block`, `If`, `While` statement execution to `execute(&Stmt)`
+**Next step:** Add `Call`, `Lambda` to `evaluate`, then `Function` and `Return` to `execute`
 
 ### Phase 1 — Tokenizer (Lexer) ✅ COMPLETE
 - [x] `enum` definition and variants (`TokenType` + `Token` struct)
@@ -188,8 +188,8 @@ At the end of every conversation where the user learns a new concept, completes 
 - [x] `Interpreter` struct with `Environment` (`HashMap<String, LoxValue>`)
 - [x] `evaluate(&Expr) -> LoxValue` — borrowing the AST, recursion on enum variants with `match`
 - [x] **3a — Evaluating Expressions:** literals (bool, nil, number, string), grouping, unary (`-`, `!` with truthy/falsy), arithmetic (`+`, `-`, `*`, `/`), string concatenation with `+`, comparison (`<`, `<=`, `>`, `>=`), equality (`==`, `!=` via `PartialEq`), `is_truthy` helper, runtime type error checking (panic)
-- [~] **3b — Statements & State:** print (via `Display` trait impl), variable declarations (`Option` unwrap_or pattern), expression statements, blocks (clone env for scope), `parse_program()` for multi-statement. Still need: assignment, nested scopes (env chain)
-- [~] **3c — Control Flow:** if/else works, while works. Still need: logical `and`/`or` (short-circuit), for loops (desugar to while)
+- [x] **3b — Statements & State:** print (via `Display` trait impl), variable declarations (`Option` unwrap_or pattern), expression statements, blocks (clone env for scope), `parse_program()` for multi-statement, assignment (`get_mut` + dereference to update env). Nested scopes (env chain) deferred to Phase 5
+- [x] **3c — Control Flow:** if/else, while, logical `and`/`or` (short-circuit, returns operand not bool). Still need: for loops (desugar to while)
 - [ ] **3d — Functions:** function declarations, return statements, native functions (`clock()`), higher order functions (functions as arguments/return values), closures (environment capture), function scope
 
 ### Phase 4 — Error Handling (refactor)
