@@ -1,4 +1,4 @@
-use std::panic;
+use std::{collections::HashMap, io::Error};
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum TokenTypes {
@@ -854,6 +854,192 @@ enum Stmt {
         functions: Box<Stmt>,
         members: Vec<String>,
     },
+}
+
+#[derive(Clone, PartialEq)]
+enum LoxValue {
+    Nil,
+    Bool(bool),
+    Number(f64),
+    String(String),
+    Function,
+}
+
+impl std::fmt::Display for LoxValue {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            LoxValue::Bool(v) => {
+                if *v {
+                    write!(f, "true")?
+                } else {
+                    write!(f, "false")?
+                }
+                Ok(())
+            }
+            LoxValue::Number(n) => {
+                write!(f, "{}", n)?;
+                Ok(())
+            }
+            LoxValue::String(s) => {
+                write!(f, "{}", s)?;
+                Ok(())
+            }
+            LoxValue::Nil => {
+                write!(f, "nil")?;
+                Ok(())
+            }
+            _ => Err(std::fmt::Error),
+        }
+    }
+}
+
+struct Environment {
+    map: HashMap<String, LoxValue>,
+}
+
+struct Interpreter {
+    environment: Environment,
+}
+
+impl Interpreter {
+    fn evaluate(&self, expr: &Expr) -> LoxValue {
+        match expr {
+            Expr::Literal { identifier } => match identifier.as_str() {
+                "true" => return LoxValue::Bool(true),
+                "false" => return LoxValue::Bool(false),
+                "nil" => return LoxValue::Nil,
+                _ => {
+                    // check for string
+                    if identifier.starts_with("\"") {
+                        return LoxValue::String(identifier[1..identifier.len() - 1].to_string());
+                    // check for number
+                    } else if let Ok(num) = identifier.parse::<f64>() {
+                        return LoxValue::Number(num);
+                    // check identifier
+                    } else if let Some(val) = self.environment.map.get(identifier) {
+                        return val.clone();
+                    } else {
+                        panic!("identifier not found");
+                    }
+                }
+            },
+            Expr::Binary {
+                left,
+                operation,
+                right,
+            } => {
+                let left_val = self.evaluate(left);
+                let right_val = self.evaluate(right);
+                return self.binary_eval(&left_val, &right_val, &operation);
+            }
+            Expr::Unary { operation, right } => {
+                let right_val = self.evaluate(right);
+                match (&right_val, &operation.token_type) {
+                    (LoxValue::Number(val), TokenTypes::Minus) => return LoxValue::Number(-val),
+                    (_, TokenTypes::Bang) => return LoxValue::Bool(!self.is_truthy(&right_val)),
+                    _ => panic!("right side is invalid."),
+                }
+            }
+            Expr::Grouping { expression } => {
+                return self.evaluate(expression);
+            }
+            _ => {
+                panic!("not supported yet");
+            }
+        }
+    }
+
+    fn execute(&mut self, stmt: &Stmt) {
+        match stmt {
+            Stmt::Var { name, value } => {
+                self.environment.map.insert(
+                    name.to_string(),
+                    value
+                        .as_ref()
+                        .map(|v| self.evaluate(v))
+                        .unwrap_or(LoxValue::Nil),
+                );
+            }
+            Stmt::Print { expr } => {
+                println!("{}", self.evaluate(expr));
+            }
+            _ => panic!("I didn't like it"),
+        }
+    }
+
+    fn is_truthy(&self, val: &LoxValue) -> bool {
+        match val {
+            LoxValue::Nil => false,
+            LoxValue::Bool(v) => *v,
+            _ => true,
+        }
+    }
+
+    fn binary_eval(&self, left: &LoxValue, right: &LoxValue, op: &Token) -> LoxValue {
+        match op.token_type {
+            TokenTypes::Greater
+            | TokenTypes::Less
+            | TokenTypes::LessEqual
+            | TokenTypes::GreaterEqual => return self.comparison_eval(left, right, &op.token_type),
+            TokenTypes::Equal | TokenTypes::BangEqual => {
+                return self.equality_eval(left, right, &op.token_type);
+            }
+            TokenTypes::Plus | TokenTypes::Minus | TokenTypes::Star | TokenTypes::Slash => {
+                return self.arithmetic_eval(left, right, &op.token_type);
+            }
+            _ => panic!("invalid operation."),
+        }
+    }
+    fn comparison_eval(&self, left: &LoxValue, right: &LoxValue, op: &TokenTypes) -> LoxValue {
+        match (left, right, op) {
+            (LoxValue::Number(a), LoxValue::Number(b), TokenTypes::Greater) => {
+                return LoxValue::Bool(a > b);
+            }
+            (LoxValue::Number(a), LoxValue::Number(b), TokenTypes::GreaterEqual) => {
+                return LoxValue::Bool(a >= b);
+            }
+            (LoxValue::Number(a), LoxValue::Number(b), TokenTypes::Less) => {
+                return LoxValue::Bool(a < b);
+            }
+            (LoxValue::Number(a), LoxValue::Number(b), TokenTypes::LessEqual) => {
+                return LoxValue::Bool(a <= b);
+            }
+            _ => panic!("wrong call/type to comparison."),
+        }
+    }
+    fn equality_eval(&self, left: &LoxValue, right: &LoxValue, op: &TokenTypes) -> LoxValue {
+        match op {
+            TokenTypes::EqualEqual => {
+                return LoxValue::Bool(left == right);
+            }
+            TokenTypes::BangEqual => {
+                return LoxValue::Bool(left != right);
+            }
+            _ => panic!("wrong call/type to equality."),
+        }
+    }
+    fn arithmetic_eval(&self, left: &LoxValue, right: &LoxValue, op: &TokenTypes) -> LoxValue {
+        match (left, right, op) {
+            (LoxValue::Number(a), LoxValue::Number(b), TokenTypes::Plus) => {
+                return LoxValue::Number(a + b);
+            }
+            (LoxValue::Number(a), LoxValue::Number(b), TokenTypes::Minus) => {
+                return LoxValue::Number(a - b);
+            }
+            (LoxValue::Number(a), LoxValue::Number(b), TokenTypes::Star) => {
+                return LoxValue::Number(a * b);
+            }
+            (LoxValue::Number(a), LoxValue::Number(b), TokenTypes::Slash) => {
+                return LoxValue::Number(a / b);
+            }
+            (LoxValue::String(a), LoxValue::String(b), TokenTypes::Plus) => {
+                let mut new = String::from(a);
+                new.push_str(b);
+                return LoxValue::String(new);
+            }
+            _ => panic!("wrong call/type to arithmetic."),
+        }
+    }
 }
 
 fn main() {

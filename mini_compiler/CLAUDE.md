@@ -76,7 +76,10 @@ When reviewing the user's code, check beyond correctness. This is a chance to te
 - **Reusability**: If the user writes the same logic twice, point it out and ask "how could you avoid repeating this?" — but only when it actually repeats, not hypothetically.
 - **No over-engineering**: Don't suggest traits, generics, or module splits until the codebase genuinely needs them. A senior C++ dev will recognize good structure — the goal is helping them express it in Rust, not redesigning architecture.
 
-When you spot an issue, don't rewrite it. Instead: point out the smell, explain *why* it matters, and ask how they'd fix it.
+When you spot an issue, don't touch the code or give direct answer. Instead: point out the smell, explain *why* it matters, and ask how they'd fix it.
+
+When user ask question how to do X or Y, teach him how to do it what needed and fill the knowledge gap you identify he is missing.
+
 
 ### Bridge C++ → Rust
 
@@ -148,14 +151,14 @@ At the end of every conversation where the user learns a new concept, completes 
 ## Learning Tracker
 
 **Current phase:** Phase 3 — Tree-Walk Interpreter
-**Next step:** Define `LoxValue` enum and write `evaluate(&Expr) -> LoxValue` for expression evaluation
+**Next step:** Add `Expression`, `Block`, `If`, `While` statement execution to `execute(&Stmt)`
 
 ### Phase 1 — Tokenizer (Lexer) ✅ COMPLETE
 - [x] `enum` definition and variants (`TokenType` + `Token` struct)
 - [x] `#[derive(Debug, Clone, PartialEq)]` — added `Clone` and `PartialEq` in Phase 2 for parser needs
 - [x] `match` and pattern matching basics
 - [x] `Option<T>` and `peek()` pattern
-- [~] Ownership: `String` vs `&str` — understands `[..]` slicing and `as_str()`, still building intuition
+- [x] Ownership: `String` vs `&str` — understands slicing, `as_str()`, `starts_with()`, `parse::<f64>()`
 - [x] Iterators: `.chars()`, `.peekable()`
 - [x] `Vec<T>` and `push()`
 - [x] Scanning single-char tokens (`(`, `)`, `{`, `}`, `,`, `.`, `-`, `+`, `;`, `/`, `*`)
@@ -181,13 +184,13 @@ At the end of every conversation where the user learns a new concept, completes 
 - [x] `return;` without value returns `Option<Expr>` (None = nil)
 
 ### Phase 3 — Tree-Walk Interpreter
-- [ ] Recursion on enum variants
-- [ ] `&Expr` — borrowing the AST for traversal
-- [ ] `format!` and string building
-- [ ] Evaluating expressions: arithmetic, comparison, equality, logical
-- [ ] `Environment` with `HashMap<String, LoxValue>` for variable storage
-- [ ] Executing statements: print, var declarations, blocks, if/else, while, return
-- [ ] `LoxValue` enum (`Nil`, `Bool`, `Number`, `String`, `Function`)
+- [x] `LoxValue` enum (`Nil`, `Bool`, `Number`, `String`, `Function`) with tuple variants
+- [x] `Interpreter` struct with `Environment` (`HashMap<String, LoxValue>`)
+- [x] `evaluate(&Expr) -> LoxValue` — borrowing the AST, recursion on enum variants with `match`
+- [x] **3a — Evaluating Expressions:** literals (bool, nil, number, string), grouping, unary (`-`, `!` with truthy/falsy), arithmetic (`+`, `-`, `*`, `/`), string concatenation with `+`, comparison (`<`, `<=`, `>`, `>=`), equality (`==`, `!=` via `PartialEq`), `is_truthy` helper, runtime type error checking (panic)
+- [~] **3b — Statements & State:** print (via `Display` trait impl), variable declarations (with `Option` unwrap_or pattern), expression statements, assignment, blocks, scopes (nested environments)
+- [ ] **3c — Control Flow:** if/else, else-if, nested if, logical `and`/`or` (short-circuit), while loops, for loops (desugar to while), syntactic error reporting
+- [ ] **3d — Functions:** function declarations, return statements, native functions (`clock()`), higher order functions (functions as arguments/return values), closures (environment capture), function scope
 
 ### Phase 4 — Error Handling (refactor)
 - [ ] `Result<T, E>` vs `panic!`
@@ -203,18 +206,7 @@ At the end of every conversation where the user learns a new concept, completes 
 - [ ] Lambdas (`fun (params) { body }`)
 
 ### Notes
-- User grasped the recursive descent parser structure quickly once the precedence chain was explained concretely with `2 + 3 * 4` example
-- Initially confused about which function calls which in the chain — fixed by emphasizing each level only talks to its immediate neighbor
-- `match_token_type` vs `check` distinction was tricky (advancing consumes the token, losing it) — switched to `check` + `advance` pattern
-- Assignment was tricky — initially tried checking for IDENTIFIER upfront and advancing, which consumed the token. Key insight: parse first, then check if `=` follows. The `match` on `Expr::Literal` to extract the identifier was a new Rust pattern for the user
-- `or`/`and` — initially tried reusing `Assign` variant for `or` instead of creating `Logical`. Also initially used `if` with `match` on Literal (same mistake as early assignment approach) before understanding that logical operators accept any expression on the left
-- Call stack visualization helped solidify understanding of how the precedence chain works end-to-end
-- Statement parsing clicked quickly — the pattern of `check keyword → parse contents → expect semicolon` was intuitive
-- Extracted `check_semicolon` and `expect` helpers without prompting — good instinct for reducing repetition
-- `expect` auto-generates error messages from `{:?}` on token type — clever use of Debug derive
-- Renamed all `TokenTypes` variants from SCREAMING_SNAKE to PascalCase — more idiomatic Rust
-- `var x;` bug: `expect` was called followed by another `advance()`, consuming two tokens instead of one. Lesson: `expect` already advances, don't double-advance
-- Call expression: initially used `if` instead of `while`, which broke left-associativity for chained calls like `foo(1)(2)`. Redundant `check_and_advance` inside `while` — works but unnecessary nesting
-- Lambda: initially had `body: Vec<Stmt>` in the variant, changed to `Box<Stmt>` to reuse existing `parse_statement()` → `parse_block()` pattern
-- Function statement: initially forgot to capture the function name — jumped straight to `(` after consuming `Fun`. Fixed by adding `expect(Identifier)` first
-- `return;` without value: initially always called `self.assignment()` which panicked on `;`. Fixed by checking for `;` first and returning `None`
+- **Phase 2 patterns:** User quickly grasped recursive descent once the precedence chain was explained with `2 + 3 * 4`. Key hurdles: `check` vs `check_and_advance` (consuming tokens), assignment "parse first then check", and `or`/`and` needing their own `Logical` variant. Extracted helpers (`check_semicolon`, `expect`) without prompting. Renamed TokenTypes to PascalCase.
+- **Phase 3 approach:** Split eval into `binary_eval` → `arithmetic_eval`/`comparison_eval`/`equality_eval` methods with tuple matching `(left, right, op)`. Used `PartialEq` derive for equality instead of manual comparison. Implemented `std::fmt::Display` for `LoxValue` to clean up print. Used `is_truthy` helper for unary `!`. `Option` chain `as_ref().map().unwrap_or()` for `var x;` (nil default).
+- **Refactoring instinct:** User proactively refactored `parse_statement` into dispatcher + individual methods, made `parse_block` self-contained (consumes own `{`), improved code reuse for lambda and function. Suggested using `check` instead of `check_and_advance` in `parse_statement` for cleaner delegation.
+- **Rust ownership:** Solidified understanding of `String` vs `&str`, slicing, `starts_with`, `parse::<f64>()`, `Clone` vs `Copy` (uses `*v` for bool instead of `v.clone()`). `&Expr` borrowing for AST traversal is natural now.
