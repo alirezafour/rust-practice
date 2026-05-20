@@ -1,4 +1,4 @@
-use std::{collections::HashMap, io::Error};
+use std::collections::HashMap;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum TokenTypes {
@@ -43,7 +43,7 @@ pub enum TokenTypes {
     Eof,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 struct Token {
     pub token_type: TokenTypes,
     pub lexeme: String,
@@ -438,7 +438,7 @@ impl Scanner {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq)]
 enum Expr {
     Literal {
         identifier: String,
@@ -824,7 +824,7 @@ impl Parser {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq)]
 enum Stmt {
     Block {
         data: Vec<Stmt>,
@@ -869,7 +869,11 @@ enum LoxValue {
     Bool(bool),
     Number(f64),
     String(String),
-    Function,
+    Function {
+        name: String,
+        parameters: Vec<String>,
+        body: Box<Stmt>,
+    },
 }
 
 impl std::fmt::Display for LoxValue {
@@ -893,6 +897,14 @@ impl std::fmt::Display for LoxValue {
             }
             LoxValue::Nil => {
                 write!(f, "nil")?;
+                Ok(())
+            }
+            LoxValue::Function {
+                name,
+                parameters,
+                body,
+            } => {
+                write!(f, "Fun {}({:?})", name, parameters)?;
                 Ok(())
             }
             _ => Err(std::fmt::Error),
@@ -982,13 +994,47 @@ impl Interpreter {
                     _ => panic!("abc"),
                 }
             }
+            Expr::Call {
+                callee,
+                paren,
+                arguments,
+            } => {
+                let identifier = self.evaluate(callee);
+                match identifier {
+                    LoxValue::Function {
+                        name,
+                        parameters,
+                        body,
+                    } => {
+                        if arguments.len() != parameters.len() {
+                            panic!("wrong param count");
+                        }
+                        let mut fun_env = HashMap::new();
+                        for (pram_name, arg_expr) in parameters.iter().zip(arguments.iter()) {
+                            let value = self.evaluate(arg_expr);
+                            fun_env.insert(pram_name.clone(), value);
+                        }
+                        let old_env = self.environment.map.clone();
+                        self.environment.map = fun_env;
+                        let result = self.execute(&body);
+                        self.environment.map = old_env;
+                        result.unwrap_or(LoxValue::Nil)
+                    }
+                    _ => panic!("wrong callee"),
+                }
+            }
+            Expr::Lambda { params, body } => LoxValue::Function {
+                name: String::new(),
+                parameters: params.clone(),
+                body: body.clone(),
+            },
             _ => {
                 panic!("not supported yet");
             }
         }
     }
 
-    fn execute(&mut self, stmt: &Stmt) {
+    fn execute(&mut self, stmt: &Stmt) -> Option<LoxValue> {
         match stmt {
             Stmt::Var { name, value } => {
                 let val = value
@@ -996,12 +1042,15 @@ impl Interpreter {
                     .map(|v| self.evaluate(v))
                     .unwrap_or(LoxValue::Nil);
                 self.environment.map.insert(name.to_string(), val);
+                None
             }
             Stmt::Print { expr } => {
                 println!("{}", self.evaluate(expr));
+                None
             }
             Stmt::Expression { expr } => {
                 self.evaluate(expr);
+                None
             }
             Stmt::If {
                 condition,
@@ -1010,27 +1059,59 @@ impl Interpreter {
             } => {
                 let res = self.evaluate(condition);
                 if self.is_truthy(&res) {
-                    self.execute(body);
+                    let result = self.execute(body);
+                    result
                 } else {
                     match else_branch {
-                        Some(body) => self.execute(body),
-                        None => {}
+                        Some(body) => {
+                            let result = self.execute(body);
+                            result
+                        }
+                        None => None,
                     }
                 }
             }
             Stmt::While { condition, body } => {
                 let mut res = self.evaluate(condition);
+                let mut result = None;
                 while self.is_truthy(&res) {
-                    self.execute(body);
+                    result = self.execute(body);
+                    if result.is_some() {
+                        break;
+                    }
                     res = self.evaluate(condition);
                 }
+                result
             }
             Stmt::Block { data } => {
                 let old_env = self.environment.map.clone();
+                let mut out = None;
                 for stmt in data {
-                    self.execute(stmt);
+                    out = self.execute(stmt);
+                    if out.is_some() {
+                        break;
+                    }
                 }
                 self.environment.map = old_env;
+                out
+            }
+            Stmt::Function { name, params, body } => {
+                self.environment.map.insert(
+                    name.clone(),
+                    LoxValue::Function {
+                        name: name.clone(),
+                        parameters: params.clone(),
+                        body: body.clone(),
+                    },
+                );
+                None
+            }
+            Stmt::Return { value } => {
+                let result = match value {
+                    Some(v) => self.evaluate(v),
+                    None => LoxValue::Nil,
+                };
+                Some(result)
             }
             _ => panic!("I didn't like it"),
         }
@@ -1222,6 +1303,8 @@ fn main() {
             "{var abc = 1;print abc;}",
             "var a = true; a = false; print a;",
             "print \"hello\" and true;\nprint true or false;\nprint false or \"hello world.\";",
+            "fun add(a, b) { return a + b; }\nprint add(1, 2);",
+            "var f = fun (a,b){ return a+b;};\nprint f(1,2);",
             // phase 5 will fix it
             // "var a = true; while(a){a=false;print \"one time print\";}",
             //

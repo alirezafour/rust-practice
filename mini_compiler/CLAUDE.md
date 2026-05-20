@@ -151,7 +151,7 @@ At the end of every conversation where the user learns a new concept, completes 
 ## Learning Tracker
 
 **Current phase:** Phase 3 — Tree-Walk Interpreter
-**Next step:** Add `Call`, `Lambda` to `evaluate`, then `Function` and `Return` to `execute`
+**Next step:** For loops (desugar to while), then Phase 4 — Error Handling
 
 ### Phase 1 — Tokenizer (Lexer) ✅ COMPLETE
 - [x] `enum` definition and variants (`TokenType` + `Token` struct)
@@ -186,11 +186,12 @@ At the end of every conversation where the user learns a new concept, completes 
 ### Phase 3 — Tree-Walk Interpreter
 - [x] `LoxValue` enum (`Nil`, `Bool`, `Number`, `String`, `Function`) with tuple variants
 - [x] `Interpreter` struct with `Environment` (`HashMap<String, LoxValue>`)
-- [x] `evaluate(&Expr) -> LoxValue` — borrowing the AST, recursion on enum variants with `match`
-- [x] **3a — Evaluating Expressions:** literals (bool, nil, number, string), grouping, unary (`-`, `!` with truthy/falsy), arithmetic (`+`, `-`, `*`, `/`), string concatenation with `+`, comparison (`<`, `<=`, `>`, `>=`), equality (`==`, `!=` via `PartialEq`), `is_truthy` helper, runtime type error checking (panic)
-- [x] **3b — Statements & State:** print (via `Display` trait impl), variable declarations (`Option` unwrap_or pattern), expression statements, blocks (clone env for scope), `parse_program()` for multi-statement, assignment (`get_mut` + dereference to update env). Nested scopes (env chain) deferred to Phase 5
-- [x] **3c — Control Flow:** if/else, while, logical `and`/`or` (short-circuit, returns operand not bool). Still need: for loops (desugar to while)
-- [ ] **3d — Functions:** function declarations, return statements, native functions (`clock()`), higher order functions (functions as arguments/return values), closures (environment capture), function scope
+- [x] `evaluate(&mut Expr) -> LoxValue` — mutable borrow for assignment/env mutation
+- [x] `execute(&mut Stmt) -> Option<LoxValue>` — returns `Some` on `return`, `None` otherwise; propagates through blocks/if/while
+- [x] **3a — Evaluating Expressions:** literals, grouping, unary, arithmetic, string concat, comparison, equality, `is_truthy` helper
+- [x] **3b — Statements & State:** print (`Display` trait), var declarations, expression statements, blocks, `parse_program()`, assignment (`get_mut` + deref). Nested scopes deferred to Phase 5
+- [x] **3c — Control Flow:** if/else, while (with return propagation), logical `and`/`or` (short-circuit, returns operand). Still need: for loops (desugar to while)
+- [x] **3d — Functions:** `LoxValue::Function { name, parameters, body }` (stores params + body as value), `Stmt::Function` (registers in env), `Expr::Call` (evaluate callee, bind params via `zip`, fresh env, execute body, return result), `Expr::Lambda` (anonymous `LoxValue::Function`), `Stmt::Return` (returns `Some(value)`, propagates through if/while/block). `Clone`/`PartialEq` added to `Stmt`, `Expr`, `Token`
 
 ### Phase 4 — Error Handling (refactor)
 - [ ] `Result<T, E>` vs `panic!`
