@@ -3,5 +3,5 @@
 version = 4
 
 [[package]]
-name = "mini_compiler"
+name = "lox_interpreter"
 version = "0.1.0"
