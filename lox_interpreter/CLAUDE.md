@@ -151,7 +151,7 @@ At the end of every conversation where the user learns a new concept, completes 
 ## Learning Tracker
 
 **Current phase:** Phase 5 — Advanced Lox Features
-**Next step:** Closures — store defining environment in `LoxValue::Function` so closures capture their lexical scope
+**Next step:** Classes and inheritance (stretch goal), or Rust testing / REPL mode
 
 ### Phase 1 — Tokenizer (Lexer) ✅ COMPLETE
 - [x] `enum` definition and variants (`TokenType` + `Token` struct)
@@ -206,13 +206,14 @@ At the end of every conversation where the user learns a new concept, completes 
 - **Known limitation:** `Expr::Assign` and undefined variable errors have `line: 0, column: 0` since `Expr::Literal` stores only a `String`, not a `Token`
 
 ### Phase 5 — Advanced Lox Features
-- [~] Environment chain — `Rc<RefCell<Environment>>` with `parent` pointer, `get_cloned`/`set` chain walking, block scoping, function call scoping, for loop scoping fixed
-- [~] `Rc<T>` (reference counting, like `shared_ptr`) and `RefCell<T>` (interior mutability, runtime borrow checking)
-- [ ] Closures — `LoxValue::Function` needs to capture its defining environment (not yet implemented)
+- [x] Environment chain — `Rc<RefCell<Environment>>` with `parent` pointer, `get_cloned`/`set` chain walking, block scoping, function call scoping, for loop scoping fixed
+- [x] `Rc<T>` (reference counting, like `shared_ptr`) and `RefCell<T>` (interior mutability, runtime borrow checking)
+- [x] Closures — `LoxValue::Function` captures defining environment via `env: Rc<RefCell<Environment>>` field; `Expr::Call` uses captured env as `fun_env.parent`; `makeCounter` test passes
 - [x] Functions as first-class values — can be stored in variables, passed as args, returned
 - [x] Lambdas (`fun (params) { body }`) — `Expr::Lambda` creates anonymous `LoxValue::Function`
-- [ ] Classes and inheritance (stretch goal)
+- [x] `PartialEq` removed from `LoxValue` derive — manual `values_equal` helper for equality comparison (functions not comparable)
 - [x] Bug fixes: `unary()` parser order, error message interpolation, env restore on error, division by zero, escape sequence `Err` not `panic!`, unknown char message
+- [ ] Classes and inheritance (stretch goal)
 
 ### Notes
 - **Phase 2 patterns:** User quickly grasped recursive descent once the precedence chain was explained with `2 + 3 * 4`. Key hurdles: `check` vs `check_and_advance` (consuming tokens), assignment "parse first then check", and `or`/`and` needing their own `Logical` variant. Extracted helpers (`check_semicolon`, `expect`) without prompting. Renamed TokenTypes to PascalCase.

@@ -146,15 +146,45 @@ fn main() {
     {
         println!("===\nInterpreter:\n===");
         let test_cases = vec![
-            "print 2 + 3;\nprint (4+5)*2;\nprint true;\nvar x = 2 + 3;\nvar check = true;\nif (check) print check;",
+            "print 2 + 3;
+            print (4+5)*2;
+            print true;
+            var x = 2 + 3;
+            var check = true;
+            if (check) print check;",
+            //
             "if (false) print \"this shouldn't print\"; else print \"this should print\";",
+            //
             "{var abc = 1;print abc;}",
+            //
             "var a = true; a = false; print a;",
-            "print \"hello\" and true;\nprint true or false;\nprint false or \"hello world.\";",
-            "fun add(a, b) { return a + b; }\nprint add(1, 2);",
-            "var f = fun (a,b){ return a+b;};\nprint f(1,2);",
+            //
+            "print \"hello\" and true;
+            print true or false;
+            print false or \"hello world.\";",
+            "fun add(a, b) { return a + b; }
+            print add(1, 2);",
+            //
+            "var f = fun (a,b){ return a+b;};
+            print f(1,2);",
+            //
             "var a = true; while(a){a=false;print \"one time print\";}",
+            //
             "for(var i=0;i<5;i=i+1) print i;",
+            //
+            "fun makeCounter() {
+                var count = 0;
+                fun counter() {
+                  count = count + 1;
+                  return count;
+                }
+                return counter;
+              }
+            
+              var c = makeCounter();
+              print c();  // should print 1
+              print c();  // should print 2",
+            //
         ];
         let mut count = 0;
         for source in test_cases {

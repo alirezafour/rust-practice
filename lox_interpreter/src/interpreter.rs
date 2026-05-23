@@ -6,7 +6,7 @@ pub struct RuntimeError {
 use crate::parser::{Expr, Stmt, Token, TokenTypes};
 use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
-#[derive(Clone, PartialEq)]
+#[derive(Clone)]
 pub enum LoxValue {
     Nil,
     Bool(bool),
@@ -16,6 +16,7 @@ pub enum LoxValue {
         name: String,
         parameters: Vec<String>,
         body: Box<Stmt>,
+        env: Rc<RefCell<Environment>>,
     },
 }
 
@@ -46,6 +47,7 @@ impl std::fmt::Display for LoxValue {
                 name,
                 parameters,
                 body,
+                env,
             } => {
                 write!(f, "Fun {}({:?})", name, parameters)?;
                 Ok(())
@@ -210,6 +212,7 @@ impl Interpreter {
                         name,
                         parameters,
                         body,
+                        env,
                     } => {
                         if arguments.len() != parameters.len() {
                             return Err(RuntimeError {
@@ -223,7 +226,7 @@ impl Interpreter {
                         let old_env = Rc::clone(&self.environment);
                         let fun_env = Rc::new(RefCell::new(Environment {
                             map: HashMap::new(),
-                            parent: Some(Rc::clone(&self.environment)),
+                            parent: Some(Rc::clone(&env)),
                         }));
                         for (pram_name, arg_expr) in parameters.iter().zip(arguments.iter()) {
                             let value = self.evaluate(arg_expr)?;
@@ -251,6 +254,7 @@ impl Interpreter {
                 name: String::new(),
                 parameters: params.clone(),
                 body: body.clone(),
+                env: Rc::clone(&self.environment),
             }),
         }
     }
@@ -337,6 +341,7 @@ impl Interpreter {
                         name: name.clone(),
                         parameters: params.clone(),
                         body: body.clone(),
+                        env: Rc::clone(&self.environment),
                     },
                 );
                 Ok(None)
@@ -421,13 +426,37 @@ impl Interpreter {
         right: &LoxValue,
         op: &Token,
     ) -> Result<LoxValue, RuntimeError> {
-        match op.token_type {
-            TokenTypes::EqualEqual => Ok(LoxValue::Bool(left == right)),
-            TokenTypes::BangEqual => Ok(LoxValue::Bool(left != right)),
-            _ => Err(RuntimeError {
+        let token_type = &op.token_type;
+        let should_flip = match token_type {
+            TokenTypes::EqualEqual => false,
+            TokenTypes::BangEqual => true,
+            _ => {
+                return Err(RuntimeError {
+                    token: op.clone(),
+                    message: "expected `!=` or `==`.".into(),
+                });
+            }
+        };
+        if let Some(v) = self.values_equal(left, right) {
+            if should_flip {
+                Ok(LoxValue::Bool(!v))
+            } else {
+                Ok(LoxValue::Bool(v))
+            }
+        } else {
+            Err(RuntimeError {
                 token: op.clone(),
                 message: "wrong call/type to equality.".into(),
-            }),
+            })
+        }
+    }
+    fn values_equal(&self, left: &LoxValue, right: &LoxValue) -> Option<bool> {
+        match (left, right) {
+            (LoxValue::Bool(l), LoxValue::Bool(r)) => Some(l == r),
+            (LoxValue::Number(l), LoxValue::Number(r)) => Some(l == r),
+            (LoxValue::String(l), LoxValue::String(r)) => Some(l == r),
+            (LoxValue::Nil, LoxValue::Nil) => Some(true),
+            _ => None,
         }
     }
     fn arithmetic_eval(
