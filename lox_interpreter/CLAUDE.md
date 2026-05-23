@@ -150,8 +150,8 @@ At the end of every conversation where the user learns a new concept, completes 
 
 ## Learning Tracker
 
-**Current phase:** Phase 3 — Tree-Walk Interpreter
-**Next step:** For loops (desugar to while), then Phase 4 — Error Handling
+**Current phase:** Phase 5 — Advanced Lox Features
+**Next step:** Closures and lexical scoping (environment chain with `Rc<RefCell<>>`)
 
 ### Phase 1 — Tokenizer (Lexer) ✅ COMPLETE
 - [x] `enum` definition and variants (`TokenType` + `Token` struct)
@@ -190,14 +190,20 @@ At the end of every conversation where the user learns a new concept, completes 
 - [x] `execute(&mut Stmt) -> Option<LoxValue>` — returns `Some` on `return`, `None` otherwise; propagates through blocks/if/while
 - [x] **3a — Evaluating Expressions:** literals, grouping, unary, arithmetic, string concat, comparison, equality, `is_truthy` helper
 - [x] **3b — Statements & State:** print (`Display` trait), var declarations, expression statements, blocks, `parse_program()`, assignment (`get_mut` + deref). Nested scopes deferred to Phase 5
-- [x] **3c — Control Flow:** if/else, while (with return propagation), logical `and`/`or` (short-circuit, returns operand). Still need: for loops (desugar to while)
+- [x] **3c — Control Flow:** if/else, while (with return propagation), logical `and`/`or` (short-circuit, returns operand)
+- [x] **3e — For Loops:** `parse_for` desugars to block + while + increment (no new AST node). Body wrapped in `Stmt::Block { body, increment }` for per-iteration increment execution
 - [x] **3d — Functions:** `LoxValue::Function { name, parameters, body }` (stores params + body as value), `Stmt::Function` (registers in env), `Expr::Call` (evaluate callee, bind params via `zip`, fresh env, execute body, return result), `Expr::Lambda` (anonymous `LoxValue::Function`), `Stmt::Return` (returns `Some(value)`, propagates through if/while/block). `Clone`/`PartialEq` added to `Stmt`, `Expr`, `Token`
 
-### Phase 4 — Error Handling (refactor)
-- [ ] `Result<T, E>` vs `panic!`
-- [ ] The `?` operator
-- [ ] Defining custom error types (`ScanError`, `ParseError`, `RuntimeError`)
-- [ ] Refactoring `scan_tokens()`, `parse()`, and `evaluate()` to return `Result`
+### Phase 4 — Error Handling (refactor) ✅ COMPLETE
+- [x] `Result<T, E>` vs `panic!` — replaced all user-facing `panic!` with `Err(...)`
+- [x] The `?` operator — used throughout parser and interpreter for error propagation
+- [x] Defining custom error types (`ScannerError`, `ParserError`, `RuntimeError`) with token/message fields
+- [x] Refactoring `scan_tokens()`, `parse_statement()`, `evaluate()`, and `execute()` to return `Result`
+- [x] `check_semicolon` and `expect` return `Result` — propagate errors instead of panicking
+- [x] `Option::transpose()` pattern for `Stmt::Var` where `Option<Result<..>>` → `Result<Option<..>>`
+- [x] `Token` gained `column` field for precise error location reporting; scanner tracks `start_column` per token
+- [x] Helper methods (`binary_eval`, `comparison_eval`, `arithmetic_eval`) take `&Token` for error position
+- **Known limitation:** `Expr::Assign` and undefined variable errors have `line: 0, column: 0` since `Expr::Literal` stores only a `String`, not a `Token`
 
 ### Phase 5 — Advanced Lox Features
 - [ ] Closures and lexical scoping (environment chain)

@@ -1,3 +1,8 @@
+pub struct RuntimeError {
+    pub token: Token,
+    pub message: String,
+}
+
 use crate::parser::{Expr, Stmt, Token, TokenTypes};
 use std::collections::HashMap;
 
@@ -66,24 +71,34 @@ impl Interpreter {
             },
         }
     }
-    fn evaluate(&mut self, expr: &Expr) -> LoxValue {
+    fn evaluate(&mut self, expr: &Expr) -> Result<LoxValue, RuntimeError> {
         match expr {
             Expr::Literal { identifier } => match identifier.as_str() {
-                "true" => return LoxValue::Bool(true),
-                "false" => return LoxValue::Bool(false),
-                "nil" => return LoxValue::Nil,
+                "true" => return Ok(LoxValue::Bool(true)),
+                "false" => return Ok(LoxValue::Bool(false)),
+                "nil" => return Ok(LoxValue::Nil),
                 _ => {
                     // check for string
                     if identifier.starts_with("\"") {
-                        return LoxValue::String(identifier[1..identifier.len() - 1].to_string());
+                        return Ok(LoxValue::String(
+                            identifier[1..identifier.len() - 1].to_string(),
+                        ));
                     // check for number
                     } else if let Ok(num) = identifier.parse::<f64>() {
-                        return LoxValue::Number(num);
+                        return Ok(LoxValue::Number(num));
                     // check identifier
                     } else if let Some(val) = self.environment.map.get(identifier) {
-                        return val.clone();
+                        return Ok(val.clone());
                     } else {
-                        panic!("identifier not found");
+                        return Err(RuntimeError {
+                            token: Token {
+                                token_type: TokenTypes::Identifier,
+                                lexeme: identifier.into(),
+                                line: 0,
+                                column: 0,
+                            },
+                            message: format!("identifier `{identifier}` not found"),
+                        });
                     }
                 }
             },
@@ -92,44 +107,67 @@ impl Interpreter {
                 operation,
                 right,
             } => {
-                let left_val = self.evaluate(left);
-                let right_val = self.evaluate(right);
+                let left_val = self.evaluate(left)?;
+                let right_val = self.evaluate(right)?;
                 return self.binary_eval(&left_val, &right_val, &operation);
             }
             Expr::Unary { operation, right } => {
-                let right_val = self.evaluate(right);
+                let right_val = self.evaluate(right)?;
                 match (&right_val, &operation.token_type) {
-                    (LoxValue::Number(val), TokenTypes::Minus) => return LoxValue::Number(-val),
-                    (_, TokenTypes::Bang) => return LoxValue::Bool(!self.is_truthy(&right_val)),
-                    _ => panic!("right side is invalid."),
+                    (LoxValue::Number(val), TokenTypes::Minus) => {
+                        return Ok(LoxValue::Number(-val));
+                    }
+                    (_, TokenTypes::Bang) => {
+                        return Ok(LoxValue::Bool(!self.is_truthy(&right_val)));
+                    }
+                    _ => {
+                        return Err(RuntimeError {
+                            token: operation.clone(),
+                            message: "expected right side to be number or bool.".into(),
+                        });
+                    }
                 }
             }
             Expr::Grouping { expression } => {
                 return self.evaluate(expression);
             }
             Expr::Assign { identifier, right } => {
-                let right_val = self.evaluate(right);
+                let right_val = self.evaluate(right)?;
                 let iter = self.environment.map.get_mut(identifier);
                 match iter {
                     Some(v) => *v = right_val.clone(),
-                    None => panic!("identifier not defined."),
+                    None => {
+                        return Err(RuntimeError {
+                            token: Token {
+                                token_type: TokenTypes::Identifier,
+                                lexeme: format!("{identifier}"),
+                                line: 0,
+                                column: 0,
+                            },
+                            message: "identifier {identifier} not defined.".into(),
+                        });
+                    }
                 }
-                return right_val;
+                return Ok(right_val);
             }
             Expr::Logical {
                 left,
                 logical,
                 right,
             } => {
-                let left_val = self.evaluate(left);
+                let left_val = self.evaluate(left)?;
                 let bool_left = self.is_truthy(&left_val);
                 match (bool_left, &logical.token_type) {
-                    (true, TokenTypes::Or) | (false, TokenTypes::And) => return left_val,
+                    (true, TokenTypes::Or) | (false, TokenTypes::And) => return Ok(left_val),
                     (true, TokenTypes::And) | (false, TokenTypes::Or) => {
-                        let right_val = self.evaluate(right);
-                        return right_val;
+                        return self.evaluate(right);
                     }
-                    _ => panic!("abc"),
+                    _ => {
+                        return Err(RuntimeError {
+                            token: logical.clone(),
+                            message: "invalid logical operation.".into(),
+                        });
+                    }
                 }
             }
             Expr::Call {
@@ -137,7 +175,7 @@ impl Interpreter {
                 paren,
                 arguments,
             } => {
-                let identifier = self.evaluate(callee);
+                let identifier = self.evaluate(callee)?;
                 match identifier {
                     LoxValue::Function {
                         name,
@@ -145,93 +183,111 @@ impl Interpreter {
                         body,
                     } => {
                         if arguments.len() != parameters.len() {
-                            panic!("wrong param count");
+                            return Err(RuntimeError {
+                                token: Token {
+                                    token_type: TokenTypes::Identifier,
+                                    lexeme: "{identifier}".into(),
+                                    line: 0,
+                                    column: 0,
+                                },
+                                message: format!(
+                                    "function {name} expected {} params.",
+                                    parameters.len()
+                                ),
+                            });
                         }
                         let mut fun_env = HashMap::new();
                         for (pram_name, arg_expr) in parameters.iter().zip(arguments.iter()) {
-                            let value = self.evaluate(arg_expr);
+                            let value = self.evaluate(arg_expr)?;
                             fun_env.insert(pram_name.clone(), value);
                         }
                         let old_env = self.environment.map.clone();
                         self.environment.map = fun_env;
-                        let result = self.execute(&body);
+                        let result = self.execute(&body)?;
                         self.environment.map = old_env;
-                        result.unwrap_or(LoxValue::Nil)
+                        Ok(result.unwrap_or(LoxValue::Nil))
                     }
-                    _ => panic!("wrong callee"),
+                    _ => Err(RuntimeError {
+                        token: paren.clone(),
+                        message: "expected function.".into(),
+                    }),
                 }
             }
-            Expr::Lambda { params, body } => LoxValue::Function {
+            Expr::Lambda { params, body } => Ok(LoxValue::Function {
                 name: String::new(),
                 parameters: params.clone(),
                 body: body.clone(),
-            },
-            _ => {
-                panic!("not supported yet");
-            }
+            }),
+            _ => Err(RuntimeError {
+                token: Token {
+                    token_type: TokenTypes::Eof,
+                    lexeme: "Eof".into(),
+                    line: 0,
+                    column: 0,
+                },
+                message: "expression not supported yet".into(),
+            }),
         }
     }
 
-    pub fn execute(&mut self, stmt: &Stmt) -> Option<LoxValue> {
+    pub fn execute(&mut self, stmt: &Stmt) -> Result<Option<LoxValue>, RuntimeError> {
         match stmt {
             Stmt::Var { name, value } => {
                 let val = value
                     .as_ref()
                     .map(|v| self.evaluate(v))
+                    .transpose()?
                     .unwrap_or(LoxValue::Nil);
                 self.environment.map.insert(name.to_string(), val);
-                None
+                Ok(None)
             }
             Stmt::Print { expr } => {
-                println!("{}", self.evaluate(expr));
-                None
+                let output = self.evaluate(expr)?;
+                println!("{}", output);
+                Ok(None)
             }
             Stmt::Expression { expr } => {
-                self.evaluate(expr);
-                None
+                self.evaluate(expr)?;
+                Ok(None)
             }
             Stmt::If {
                 condition,
                 body,
                 else_branch,
             } => {
-                let res = self.evaluate(condition);
+                let res = self.evaluate(condition)?;
                 if self.is_truthy(&res) {
-                    let result = self.execute(body);
-                    result
+                    self.execute(body)
                 } else {
                     match else_branch {
-                        Some(body) => {
-                            let result = self.execute(body);
-                            result
-                        }
-                        None => None,
+                        Some(body) => self.execute(body),
+                        None => Ok(None),
                     }
                 }
             }
             Stmt::While { condition, body } => {
-                let mut res = self.evaluate(condition);
+                let mut res = self.evaluate(condition)?;
                 let mut result = None;
                 while self.is_truthy(&res) {
-                    result = self.execute(body);
+                    result = self.execute(body)?;
                     if result.is_some() {
                         break;
                     }
-                    res = self.evaluate(condition);
+                    res = self.evaluate(condition)?;
                 }
-                result
+                Ok(result)
             }
             Stmt::Block { data } => {
                 let old_env = self.environment.map.clone();
                 let mut out = None;
                 for stmt in data {
-                    out = self.execute(stmt);
+                    out = self.execute(stmt)?;
                     if out.is_some() {
                         break;
                     }
                 }
                 self.environment.map = old_env;
-                out
+                Ok(out)
             }
             Stmt::Function { name, params, body } => {
                 self.environment.map.insert(
@@ -242,16 +298,24 @@ impl Interpreter {
                         body: body.clone(),
                     },
                 );
-                None
+                Ok(None)
             }
             Stmt::Return { value } => {
                 let result = match value {
-                    Some(v) => self.evaluate(v),
+                    Some(v) => self.evaluate(v)?,
                     None => LoxValue::Nil,
                 };
-                Some(result)
+                Ok(Some(result))
             }
-            _ => panic!("I didn't like it"),
+            _ => Err(RuntimeError {
+                token: Token {
+                    token_type: TokenTypes::Eof,
+                    lexeme: "Eof".into(),
+                    line: 0,
+                    column: 0,
+                },
+                message: "I didn't like it".into(),
+            }),
         }
     }
 
@@ -263,69 +327,97 @@ impl Interpreter {
         }
     }
 
-    fn binary_eval(&self, left: &LoxValue, right: &LoxValue, op: &Token) -> LoxValue {
+    fn binary_eval(
+        &self,
+        left: &LoxValue,
+        right: &LoxValue,
+        op: &Token,
+    ) -> Result<LoxValue, RuntimeError> {
         match op.token_type {
             TokenTypes::Greater
             | TokenTypes::Less
             | TokenTypes::LessEqual
-            | TokenTypes::GreaterEqual => return self.comparison_eval(left, right, &op.token_type),
-            TokenTypes::Equal | TokenTypes::BangEqual => {
-                return self.equality_eval(left, right, &op.token_type);
-            }
+            | TokenTypes::GreaterEqual => return self.comparison_eval(left, right, &op),
+            TokenTypes::Equal | TokenTypes::BangEqual => self.equality_eval(left, right, &op),
             TokenTypes::Plus | TokenTypes::Minus | TokenTypes::Star | TokenTypes::Slash => {
-                return self.arithmetic_eval(left, right, &op.token_type);
+                self.arithmetic_eval(left, right, &op)
             }
-            _ => panic!("invalid operation."),
+            _ => Err(RuntimeError {
+                token: op.clone(),
+                message: "invalid token type.".into(),
+            }),
         }
     }
-    fn comparison_eval(&self, left: &LoxValue, right: &LoxValue, op: &TokenTypes) -> LoxValue {
-        match (left, right, op) {
+    fn comparison_eval(
+        &self,
+        left: &LoxValue,
+        right: &LoxValue,
+        op: &Token,
+    ) -> Result<LoxValue, RuntimeError> {
+        let token_type = &op.token_type;
+        match (left, right, token_type) {
             (LoxValue::Number(a), LoxValue::Number(b), TokenTypes::Greater) => {
-                return LoxValue::Bool(a > b);
+                Ok(LoxValue::Bool(a > b))
             }
             (LoxValue::Number(a), LoxValue::Number(b), TokenTypes::GreaterEqual) => {
-                return LoxValue::Bool(a >= b);
+                Ok(LoxValue::Bool(a >= b))
             }
             (LoxValue::Number(a), LoxValue::Number(b), TokenTypes::Less) => {
-                return LoxValue::Bool(a < b);
+                Ok(LoxValue::Bool(a < b))
             }
             (LoxValue::Number(a), LoxValue::Number(b), TokenTypes::LessEqual) => {
-                return LoxValue::Bool(a <= b);
+                Ok(LoxValue::Bool(a <= b))
             }
-            _ => panic!("wrong call/type to comparison."),
+            _ => Err(RuntimeError {
+                token: op.clone(),
+                message: "unexpected call for comparison eval.".into(),
+            }),
         }
     }
-    fn equality_eval(&self, left: &LoxValue, right: &LoxValue, op: &TokenTypes) -> LoxValue {
-        match op {
-            TokenTypes::EqualEqual => {
-                return LoxValue::Bool(left == right);
-            }
-            TokenTypes::BangEqual => {
-                return LoxValue::Bool(left != right);
-            }
-            _ => panic!("wrong call/type to equality."),
+    fn equality_eval(
+        &self,
+        left: &LoxValue,
+        right: &LoxValue,
+        op: &Token,
+    ) -> Result<LoxValue, RuntimeError> {
+        match op.token_type {
+            TokenTypes::EqualEqual => Ok(LoxValue::Bool(left == right)),
+            TokenTypes::BangEqual => Ok(LoxValue::Bool(left != right)),
+            _ => Err(RuntimeError {
+                token: op.clone(),
+                message: "wrong call/type to equality.".into(),
+            }),
         }
     }
-    fn arithmetic_eval(&self, left: &LoxValue, right: &LoxValue, op: &TokenTypes) -> LoxValue {
-        match (left, right, op) {
+    fn arithmetic_eval(
+        &self,
+        left: &LoxValue,
+        right: &LoxValue,
+        op: &Token,
+    ) -> Result<LoxValue, RuntimeError> {
+        let token_type = &op.token_type;
+        match (left, right, token_type) {
             (LoxValue::Number(a), LoxValue::Number(b), TokenTypes::Plus) => {
-                return LoxValue::Number(a + b);
+                Ok(LoxValue::Number(a + b))
             }
             (LoxValue::Number(a), LoxValue::Number(b), TokenTypes::Minus) => {
-                return LoxValue::Number(a - b);
+                Ok(LoxValue::Number(a - b))
             }
             (LoxValue::Number(a), LoxValue::Number(b), TokenTypes::Star) => {
-                return LoxValue::Number(a * b);
+                Ok(LoxValue::Number(a * b))
             }
             (LoxValue::Number(a), LoxValue::Number(b), TokenTypes::Slash) => {
-                return LoxValue::Number(a / b);
+                Ok(LoxValue::Number(a / b))
             }
             (LoxValue::String(a), LoxValue::String(b), TokenTypes::Plus) => {
                 let mut new = String::from(a);
                 new.push_str(b);
-                return LoxValue::String(new);
+                Ok(LoxValue::String(new))
             }
-            _ => panic!("wrong call/type to arithmetic."),
+            _ => Err(RuntimeError {
+                token: op.clone(),
+                message: "wrong call/type to arithmetic.".into(),
+            }),
         }
     }
 }

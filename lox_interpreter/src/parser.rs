@@ -1,3 +1,10 @@
+use std::fmt::format;
+
+pub struct ParserError {
+    pub token: Token,
+    pub message: String,
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum TokenTypes {
     LeftParen,
@@ -46,6 +53,7 @@ pub struct Token {
     pub token_type: TokenTypes,
     pub lexeme: String,
     pub line: usize,
+    pub column: usize,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -143,7 +151,7 @@ impl Parser {
     }
     fn check(&self, token_type: TokenTypes) -> bool {
         if let Some(token) = self.peek()
-            && token.token_type == token_type
+            && &token.token_type == &token_type
         {
             return true;
         }
@@ -157,134 +165,143 @@ impl Parser {
             false
         }
     }
-    fn expect(&mut self, token_type: TokenTypes) -> Token {
-        let message = format!("expected: {:?}.", &token_type);
+    fn expect(&mut self, token_type: TokenTypes) -> Result<Token, ParserError> {
+        let error_msg = format!("expected {:?}.", &token_type).to_string();
         if self.check(token_type) {
-            return self.advance();
+            Ok(self.advance())
         } else {
-            panic!("{}", message);
+            let found = self.peek().cloned().unwrap(); // always found (EOF max)
+            Err(ParserError {
+                token: found,
+                message: error_msg,
+            })
         }
     }
 
-    pub fn assignment(&mut self) -> Expr {
-        let left = self.or();
+    pub fn assignment(&mut self) -> Result<Expr, ParserError> {
+        let left = self.or()?;
         if self.check(TokenTypes::Equal) {
             match left {
                 Expr::Literal { identifier } => {
                     let _ = self.advance();
-                    let right = self.assignment();
-                    return Expr::Assign {
+                    let right = self.assignment()?;
+                    return Ok(Expr::Assign {
                         identifier,
                         right: Box::new(right),
-                    };
+                    });
                 }
-                _ => panic!("invalid "),
+                _ => {
+                    return Err(ParserError {
+                        token: self.peek().cloned().unwrap(),
+                        message: "unexpected token.".to_string(),
+                    });
+                }
             }
         }
-        left
+        Ok(left)
     }
-    fn or(&mut self) -> Expr {
-        let left = self.and();
+    fn or(&mut self) -> Result<Expr, ParserError> {
+        let left = self.and()?;
         if self.check(TokenTypes::Or) {
             let logical = self.advance();
-            let right = self.or();
-            return Expr::Logical {
+            let right = self.or()?;
+            return Ok(Expr::Logical {
                 left: Box::new(left),
                 logical: logical,
                 right: Box::new(right),
-            };
+            });
         }
-        left
+        Ok(left)
     }
-    fn and(&mut self) -> Expr {
-        let left = self.equality();
+    fn and(&mut self) -> Result<Expr, ParserError> {
+        let left = self.equality()?;
         if self.check(TokenTypes::And) {
             let logical = self.advance();
-            let right = self.and();
-            return Expr::Logical {
+            let right = self.and()?;
+            return Ok(Expr::Logical {
                 left: Box::new(left),
                 logical: logical,
                 right: Box::new(right),
-            };
+            });
         }
-        left
+        Ok(left)
     }
-    fn equality(&mut self) -> Expr {
-        let mut left = self.comparison();
+    fn equality(&mut self) -> Result<Expr, ParserError> {
+        let mut left = self.comparison()?;
         while self.check(TokenTypes::EqualEqual) || self.check(TokenTypes::BangEqual) {
             let operation = self.advance();
-            let right = self.comparison();
+            let right = self.comparison()?;
             left = Expr::Binary {
                 left: Box::new(left),
                 operation,
                 right: Box::new(right),
             }
         }
-        left
+        Ok(left)
     }
-    fn comparison(&mut self) -> Expr {
-        let mut left = self.term();
+    fn comparison(&mut self) -> Result<Expr, ParserError> {
+        let mut left = self.term()?;
         while self.check(TokenTypes::Less)
             || self.check(TokenTypes::LessEqual)
             || self.check(TokenTypes::Greater)
             || self.check(TokenTypes::GreaterEqual)
         {
             let operation = self.advance();
-            let right = self.term();
+            let right = self.term()?;
             left = Expr::Binary {
                 left: Box::new(left),
                 operation,
                 right: Box::new(right),
             }
         }
-        left
+        Ok(left)
     }
-    fn term(&mut self) -> Expr {
-        let mut left = self.factor();
+    fn term(&mut self) -> Result<Expr, ParserError> {
+        let mut left = self.factor()?;
         while self.check(TokenTypes::Plus) || self.check(TokenTypes::Minus) {
             let operation = self.advance();
-            let right = self.factor();
+            let right = self.factor()?;
             left = Expr::Binary {
                 left: Box::new(left),
                 operation,
                 right: Box::new(right),
             }
         }
-        left
+        Ok(left)
     }
-    fn factor(&mut self) -> Expr {
-        let mut left = self.unary();
+    fn factor(&mut self) -> Result<Expr, ParserError> {
+        let mut left = self.unary()?;
         while self.check(TokenTypes::Star) || self.check(TokenTypes::Slash) {
             let operation = self.advance();
-            let right = self.unary();
+            let right = self.unary()?;
             left = Expr::Binary {
                 left: Box::new(left),
                 operation,
                 right: Box::new(right),
             }
         }
-        left
+        Ok(left)
     }
-    fn unary(&mut self) -> Expr {
-        let mut left = self.call();
+    fn unary(&mut self) -> Result<Expr, ParserError> {
+        let mut left = self.call()?;
         if self.check(TokenTypes::Minus) || self.check(TokenTypes::Bang) {
             let operation = self.advance();
-            let right = self.primary();
+            let right = self.primary()?;
             left = Expr::Unary {
                 operation: operation,
                 right: Box::new(right),
             };
         }
-        left
+        Ok(left)
     }
-    fn call(&mut self) -> Expr {
-        let mut left = self.primary();
+    fn call(&mut self) -> Result<Expr, ParserError> {
+        let mut left = self.primary()?;
         while self.check(TokenTypes::LeftParen) && !self.check(TokenTypes::Eof) {
             if self.check_and_advance(TokenTypes::LeftParen) {
                 let paren = self.tokens[self.current - 1].clone();
                 let mut arguments = vec![];
                 while !self.check(TokenTypes::RightParen) && !self.check(TokenTypes::Eof) {
-                    let argument = self.assignment();
+                    let argument = self.assignment()?;
                     arguments.push(argument);
                     self.check_and_advance(TokenTypes::Comma);
                 }
@@ -295,48 +312,58 @@ impl Parser {
                         arguments,
                     };
                 } else {
-                    panic!("expected closing paren for function call.");
+                    let found = self.peek().cloned().unwrap();
+                    return Err(ParserError {
+                        token: found,
+                        message: "expected '}' .".to_string(),
+                    });
                 }
             }
         }
-        left
+        Ok(left)
     }
-    fn primary(&mut self) -> Expr {
+    fn primary(&mut self) -> Result<Expr, ParserError> {
         if self.check(TokenTypes::Number) || self.check(TokenTypes::Identifier) {
             let literal = self.advance();
-            return Expr::Literal {
+            return Ok(Expr::Literal {
                 identifier: literal.lexeme,
-            };
+            });
         } else if self.check(TokenTypes::LeftParen) {
             let open_group = self.advance();
-            let right = self.equality();
+            let right = self.equality()?;
             if self.check(TokenTypes::RightParen) {
                 let _ = self.advance();
-                return Expr::Grouping {
+                return Ok(Expr::Grouping {
                     expression: Box::new(right),
-                };
+                });
             } else {
-                panic!("expected closing for {}", open_group.lexeme);
+                return Err(ParserError {
+                    token: self.peek().cloned().unwrap(),
+                    message: format!("expected closing for {}", open_group.lexeme).to_string(),
+                });
             }
         } else if self.check(TokenTypes::True)
             || self.check(TokenTypes::False)
             || self.check(TokenTypes::Nil)
         {
             let key_word = self.advance();
-            return Expr::Literal {
+            return Ok(Expr::Literal {
                 identifier: key_word.lexeme,
-            };
+            });
         } else if self.check(TokenTypes::String) {
             let string = self.advance();
-            return Expr::Literal {
+            return Ok(Expr::Literal {
                 identifier: string.lexeme,
-            };
+            });
         } else if self.check(TokenTypes::Fun) {
             return self.parse_function_expr();
         }
-        panic!("failed.");
+        return Err(ParserError {
+            token: self.peek().cloned().unwrap(),
+            message: "expected primary.".to_string(),
+        });
     }
-    fn parse_function_expr(&mut self) -> Expr {
+    fn parse_function_expr(&mut self) -> Result<Expr, ParserError> {
         let left = self.advance();
         if self.check_and_advance(TokenTypes::LeftParen) {
             let mut arguments = vec![];
@@ -344,32 +371,36 @@ impl Parser {
                 arguments.push(self.advance().lexeme);
                 self.check_and_advance(TokenTypes::Comma);
             }
-            self.expect(TokenTypes::RightParen);
-            return Expr::Lambda {
+            self.expect(TokenTypes::RightParen)?;
+            return Ok(Expr::Lambda {
                 params: arguments,
-                body: Box::new(self.parse_block()),
-            };
+                body: Box::new(self.parse_block()?),
+            });
         }
-        Expr::Literal {
+        Ok(Expr::Literal {
             identifier: left.lexeme,
-        }
+        })
     }
 
-    fn check_semicolon(&mut self, statement: Stmt) -> Stmt {
+    fn check_semicolon(&mut self, statement: Stmt) -> Result<Stmt, ParserError> {
         if self.check(TokenTypes::Semicolon) {
             let _ = self.advance();
-            return statement;
+            return Ok(statement);
         }
-        panic!("expected semicolon.")
+        let found = self.peek().cloned().unwrap();
+        Err(ParserError {
+            token: found,
+            message: "expected ';'.".to_string(),
+        })
     }
-    pub fn parse_porgram(&mut self) -> Vec<Stmt> {
+    pub fn parse_program(&mut self) -> Result<Vec<Stmt>, ParserError> {
         let mut v = Vec::new();
         while !self.check(TokenTypes::Eof) {
-            v.push(self.parse_statement());
+            v.push(self.parse_statement()?);
         }
-        v
+        Ok(v)
     }
-    pub fn parse_statement(&mut self) -> Stmt {
+    pub fn parse_statement(&mut self) -> Result<Stmt, ParserError> {
         if self.check_and_advance(TokenTypes::Print) {
             return self.parse_print();
         } else if self.check_and_advance(TokenTypes::Var) {
@@ -378,6 +409,8 @@ impl Parser {
             return self.parse_if();
         } else if self.check_and_advance(TokenTypes::While) {
             return self.parse_while();
+        } else if self.check_and_advance(TokenTypes::For) {
+            return self.parse_for();
         } else if self.check(TokenTypes::LeftBrace) {
             return self.parse_block();
         } else if self.check_and_advance(TokenTypes::Return) {
@@ -387,88 +420,123 @@ impl Parser {
         }
         return self.parse_expr();
     }
-    fn parse_expr(&mut self) -> Stmt {
-        let expr = self.assignment();
+    fn parse_expr(&mut self) -> Result<Stmt, ParserError> {
+        let expr = self.assignment()?;
         return self.check_semicolon(Stmt::Expression { expr });
     }
-    fn parse_var(&mut self) -> Stmt {
-        let name = self.expect(TokenTypes::Identifier).lexeme;
+    fn parse_var(&mut self) -> Result<Stmt, ParserError> {
+        let name = self.expect(TokenTypes::Identifier)?.lexeme;
         let mut value = None;
         if self.check_and_advance(TokenTypes::Equal) {
-            value = Some(self.assignment());
+            value = Some(self.assignment()?);
         }
         return self.check_semicolon(Stmt::Var { name, value });
     }
-    fn parse_print(&mut self) -> Stmt {
-        let print_stmt = self.assignment();
+    fn parse_print(&mut self) -> Result<Stmt, ParserError> {
+        let print_stmt = self.assignment()?;
         return self.check_semicolon(Stmt::Print { expr: print_stmt });
     }
-    fn parse_if(&mut self) -> Stmt {
-        self.expect(TokenTypes::LeftParen);
-        let expr = self.assignment();
-        self.expect(TokenTypes::RightParen);
-        let body = self.parse_statement();
+    fn parse_if(&mut self) -> Result<Stmt, ParserError> {
+        self.expect(TokenTypes::LeftParen)?;
+        let expr = self.assignment()?;
+        self.expect(TokenTypes::RightParen)?;
+        let body = self.parse_statement()?;
         let mut else_branch = None;
         if self.check_and_advance(TokenTypes::Else) {
-            else_branch = Some(Box::new(self.parse_statement()));
+            else_branch = Some(Box::new(self.parse_statement()?));
         }
-        return Stmt::If {
+        Ok(Stmt::If {
             condition: expr,
             body: Box::new(body),
             else_branch: else_branch,
-        };
+        })
     }
-    fn parse_while(&mut self) -> Stmt {
-        self.expect(TokenTypes::LeftParen);
-        let expr = self.assignment();
-        self.expect(TokenTypes::RightParen);
-        let body = self.parse_statement();
-        return Stmt::While {
+    fn parse_while(&mut self) -> Result<Stmt, ParserError> {
+        self.expect(TokenTypes::LeftParen)?;
+        let expr = self.assignment()?;
+        self.expect(TokenTypes::RightParen)?;
+        let body = self.parse_statement()?;
+        Ok(Stmt::While {
             condition: expr,
             body: Box::new(body),
-        };
+        })
     }
-    fn parse_block(&mut self) -> Stmt {
+    fn parse_for(&mut self) -> Result<Stmt, ParserError> {
+        self.expect(TokenTypes::LeftParen)?;
+        let mut data = Vec::new();
+        let init = self.parse_statement()?;
+        data.push(init);
+        let condition = self.parse_statement()?;
+        let while_expr;
+        match condition {
+            Stmt::Expression { expr } => while_expr = expr,
+            _ => {
+                let found = self.peek().cloned().unwrap();
+                return Err(ParserError {
+                    token: found,
+                    message: "expected an expression.".to_string(),
+                });
+            }
+        }
+        let increment = Stmt::Expression {
+            expr: self.assignment()?,
+        };
+        self.expect(TokenTypes::RightParen)?;
+        let body = self.parse_statement()?;
+        let body_group = Stmt::Block {
+            data: vec![body, increment],
+        };
+        data.push(Stmt::While {
+            condition: while_expr,
+            body: Box::new(body_group),
+        });
+        Ok(Stmt::Block { data: data })
+    }
+    fn parse_block(&mut self) -> Result<Stmt, ParserError> {
         if !self.check_and_advance(TokenTypes::LeftBrace) {
-            panic!("wrong call to parse block.");
+            let found = self.peek().cloned().unwrap();
+            return Err(ParserError {
+                token: found,
+                message: "expected '('.".to_string(),
+            });
         }
         let mut data = vec![];
         while !self.check(TokenTypes::Eof) && !self.check(TokenTypes::RightBrace) {
-            data.push(self.parse_statement());
+            data.push(self.parse_statement()?);
         }
-        self.expect(TokenTypes::RightBrace);
-        return Stmt::Block { data };
+        self.expect(TokenTypes::RightBrace)?;
+        Ok(Stmt::Block { data })
     }
-    fn parse_return(&mut self) -> Stmt {
+    fn parse_return(&mut self) -> Result<Stmt, ParserError> {
         if self.check_and_advance(TokenTypes::Semicolon) {
-            return Stmt::Return { value: None };
+            return Ok(Stmt::Return { value: None });
         }
-        let return_value = self.assignment();
+        let return_value = self.assignment()?;
         return self.check_semicolon(Stmt::Return {
             value: Some(return_value),
         });
     }
-    fn parse_function(&mut self) -> Stmt {
-        let name = self.expect(TokenTypes::Identifier).lexeme;
-        self.expect(TokenTypes::LeftParen);
+    fn parse_function(&mut self) -> Result<Stmt, ParserError> {
+        let name = self.expect(TokenTypes::Identifier)?.lexeme;
+        self.expect(TokenTypes::LeftParen)?;
         let mut params = vec![];
         while !self.check(TokenTypes::RightParen) && !self.check(TokenTypes::Eof) {
             if self.check(TokenTypes::Identifier) {
                 params.push(self.advance().lexeme);
                 self.check_and_advance(TokenTypes::Comma);
             } else {
-                panic!(
-                    "expected parameter name. but see {:?}",
-                    self.advance().lexeme
-                );
+                return Err(ParserError {
+                    token: self.peek().cloned().unwrap(),
+                    message: "expected param name.".to_string(),
+                });
             }
         }
-        self.expect(TokenTypes::RightParen);
-        let body = self.parse_block();
-        return Stmt::Function {
+        self.expect(TokenTypes::RightParen)?;
+        let body = self.parse_block()?;
+        Ok(Stmt::Function {
             name: name,
             params: params,
             body: Box::new(body),
-        };
+        })
     }
 }

@@ -41,10 +41,17 @@ fn main() {
                 source_code: source,
                 current: 0,
                 line: 1,
+                column: 0,
             };
 
             let tokens = scanner.scan_tokens();
-            println!("Tokens: {:?}", tokens);
+            match tokens {
+                Ok(tokens) => println!("Tokens: {:?}", tokens),
+                Err(err) => println!(
+                    "error: {} at line[{}:{}].",
+                    &err.message, &err.line, &err.column
+                ),
+            }
         }
     }
     {
@@ -68,11 +75,26 @@ fn main() {
                 source_code: source.to_string(),
                 current: 0,
                 line: 1,
+                column: 0,
             };
             let tokens = scanner.scan_tokens();
-            let mut parser = Parser::new(tokens);
-            let expr = parser.assignment();
-            println!("==\nexpr: {expr:?}");
+            match tokens {
+                Ok(tokens) => {
+                    let mut parser = Parser::new(tokens);
+                    let expr = parser.assignment();
+                    match expr {
+                        Ok(expr) => println!("==\nexpr: {expr:?}"),
+                        Err(err) => println!(
+                            "error: {} at line[{}:{}].",
+                            err.message, err.token.line, err.token.column
+                        ),
+                    }
+                }
+                Err(err) => println!(
+                    "error: {} at line[{}:{}].",
+                    err.message, err.line, err.column
+                ),
+            }
         }
     }
     {
@@ -100,11 +122,26 @@ fn main() {
                 source_code: source.to_string(),
                 current: 0,
                 line: 1,
+                column: 0,
             };
             let tokens = scanner.scan_tokens();
-            let mut parser = Parser::new(tokens);
-            let stmt = parser.parse_statement();
-            println!("==\nstmt: {stmt:?}");
+            match tokens {
+                Ok(tokens) => {
+                    let mut parser = Parser::new(tokens);
+                    let stmt = parser.parse_statement();
+                    match stmt {
+                        Ok(stmt) => println!("==\nstmt: {stmt:?}"),
+                        Err(err) => println!(
+                            "error: {} at line[{}:{}].",
+                            err.message, err.token.line, err.token.column
+                        ),
+                    }
+                }
+                Err(err) => println!(
+                    "error: {} at line[{}:{}].",
+                    err.message, err.line, err.column
+                ),
+            }
         }
     }
     {
@@ -117,8 +154,10 @@ fn main() {
             "print \"hello\" and true;\nprint true or false;\nprint false or \"hello world.\";",
             "fun add(a, b) { return a + b; }\nprint add(1, 2);",
             "var f = fun (a,b){ return a+b;};\nprint f(1,2);",
+            "var new = 12;\nnew = 1;\nprint abc;",
             // phase 5 will fix it
             // "var a = true; while(a){a=false;print \"one time print\";}",
+            // "for(var i=0;i<5;i=i+1) print i;",
             //
         ];
         let mut count = 0;
@@ -129,14 +168,37 @@ fn main() {
                 source_code: source.to_string(),
                 current: 0,
                 line: 1,
+                column: 0,
             };
             let tokens = scanner.scan_tokens();
-
-            let mut parser = Parser::new(tokens);
-            let statements = parser.parse_porgram();
-            let mut inter = Interpreter::new();
-            for stmt in statements {
-                inter.execute(&stmt);
+            match tokens {
+                Ok(tokens) => {
+                    let mut parser = Parser::new(tokens);
+                    let statements = parser.parse_program();
+                    match statements {
+                        Ok(statements) => {
+                            let mut inter = Interpreter::new();
+                            for stmt in statements {
+                                let result = inter.execute(&stmt);
+                                if result.is_err() {
+                                    let err = result.err().unwrap();
+                                    println!(
+                                        "error: {} at line [{}:{}].",
+                                        err.message, err.token.line, err.token.column
+                                    );
+                                }
+                            }
+                        }
+                        Err(err) => println!(
+                            "error: {} at line [{}:{}].",
+                            err.message, err.token.line, err.token.column
+                        ),
+                    }
+                }
+                Err(err) => println!(
+                    "error: {} at line[{}:{}].",
+                    err.message, err.line, err.column
+                ),
             }
         }
     }
