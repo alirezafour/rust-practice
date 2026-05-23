@@ -154,11 +154,8 @@ fn main() {
             "print \"hello\" and true;\nprint true or false;\nprint false or \"hello world.\";",
             "fun add(a, b) { return a + b; }\nprint add(1, 2);",
             "var f = fun (a,b){ return a+b;};\nprint f(1,2);",
-            "var new = 12;\nnew = 1;\nprint abc;",
-            // phase 5 will fix it
-            // "var a = true; while(a){a=false;print \"one time print\";}",
-            // "for(var i=0;i<5;i=i+1) print i;",
-            //
+            "var a = true; while(a){a=false;print \"one time print\";}",
+            "for(var i=0;i<5;i=i+1) print i;",
         ];
         let mut count = 0;
         for source in test_cases {

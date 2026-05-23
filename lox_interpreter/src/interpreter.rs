@@ -4,7 +4,7 @@ pub struct RuntimeError {
 }
 
 use crate::parser::{Expr, Stmt, Token, TokenTypes};
-use std::collections::HashMap;
+use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
 #[derive(Clone, PartialEq)]
 pub enum LoxValue {
@@ -57,18 +57,48 @@ impl std::fmt::Display for LoxValue {
 
 struct Environment {
     map: HashMap<String, LoxValue>,
+    parent: Option<Rc<RefCell<Environment>>>,
+}
+
+impl Environment {
+    fn get_cloned(&self, key: &str) -> Option<LoxValue> {
+        match self.map.get(key) {
+            Some(value) => Some(value.clone()),
+            None => {
+                return match &self.parent {
+                    Some(parent) => parent.borrow().get_cloned(key),
+                    None => None,
+                };
+            }
+        }
+    }
+    fn set(&mut self, key: &str, value: LoxValue) -> bool {
+        match self.map.get_mut(key) {
+            Some(v) => {
+                *v = value;
+                true
+            }
+            None => {
+                return match &self.parent {
+                    Some(parent) => parent.borrow_mut().set(key, value),
+                    None => false,
+                };
+            }
+        }
+    }
 }
 
 pub struct Interpreter {
-    environment: Environment,
+    environment: Rc<RefCell<Environment>>,
 }
 
 impl Interpreter {
     pub fn new() -> Self {
         Interpreter {
-            environment: Environment {
+            environment: Rc::new(RefCell::new(Environment {
                 map: HashMap::new(),
-            },
+                parent: None,
+            })),
         }
     }
     fn evaluate(&mut self, expr: &Expr) -> Result<LoxValue, RuntimeError> {
@@ -87,7 +117,7 @@ impl Interpreter {
                     } else if let Ok(num) = identifier.parse::<f64>() {
                         return Ok(LoxValue::Number(num));
                     // check identifier
-                    } else if let Some(val) = self.environment.map.get(identifier) {
+                    } else if let Some(val) = self.environment.borrow().get_cloned(identifier) {
                         return Ok(val.clone());
                     } else {
                         return Err(RuntimeError {
@@ -133,20 +163,20 @@ impl Interpreter {
             }
             Expr::Assign { identifier, right } => {
                 let right_val = self.evaluate(right)?;
-                let iter = self.environment.map.get_mut(identifier);
-                match iter {
-                    Some(v) => *v = right_val.clone(),
-                    None => {
-                        return Err(RuntimeError {
-                            token: Token {
-                                token_type: TokenTypes::Identifier,
-                                lexeme: format!("{identifier}"),
-                                line: 0,
-                                column: 0,
-                            },
-                            message: "identifier {identifier} not defined.".into(),
-                        });
-                    }
+                if !self
+                    .environment
+                    .borrow_mut()
+                    .set(identifier, right_val.clone())
+                {
+                    return Err(RuntimeError {
+                        token: Token {
+                            token_type: TokenTypes::Identifier,
+                            lexeme: format!("{identifier}"),
+                            line: 0,
+                            column: 0,
+                        },
+                        message: "identifier {identifier} not defined.".into(),
+                    });
                 }
                 return Ok(right_val);
             }
@@ -196,15 +226,18 @@ impl Interpreter {
                                 ),
                             });
                         }
-                        let mut fun_env = HashMap::new();
+                        let old_env = Rc::clone(&self.environment);
+                        let fun_env = Rc::new(RefCell::new(Environment {
+                            map: HashMap::new(),
+                            parent: Some(Rc::clone(&self.environment)),
+                        }));
                         for (pram_name, arg_expr) in parameters.iter().zip(arguments.iter()) {
                             let value = self.evaluate(arg_expr)?;
-                            fun_env.insert(pram_name.clone(), value);
+                            fun_env.borrow_mut().map.insert(pram_name.clone(), value);
                         }
-                        let old_env = self.environment.map.clone();
-                        self.environment.map = fun_env;
+                        self.environment = fun_env;
                         let result = self.execute(&body)?;
-                        self.environment.map = old_env;
+                        self.environment = old_env;
                         Ok(result.unwrap_or(LoxValue::Nil))
                     }
                     _ => Err(RuntimeError {
@@ -238,7 +271,10 @@ impl Interpreter {
                     .map(|v| self.evaluate(v))
                     .transpose()?
                     .unwrap_or(LoxValue::Nil);
-                self.environment.map.insert(name.to_string(), val);
+                self.environment
+                    .borrow_mut()
+                    .map
+                    .insert(name.to_string(), val);
                 Ok(None)
             }
             Stmt::Print { expr } => {
@@ -278,7 +314,12 @@ impl Interpreter {
                 Ok(result)
             }
             Stmt::Block { data } => {
-                let old_env = self.environment.map.clone();
+                let old_env = Rc::clone(&self.environment);
+                let fun_env = Rc::new(RefCell::new(Environment {
+                    map: HashMap::new(),
+                    parent: Some(Rc::clone(&self.environment)),
+                }));
+                self.environment = fun_env;
                 let mut out = None;
                 for stmt in data {
                     out = self.execute(stmt)?;
@@ -286,11 +327,11 @@ impl Interpreter {
                         break;
                     }
                 }
-                self.environment.map = old_env;
+                self.environment = old_env;
                 Ok(out)
             }
             Stmt::Function { name, params, body } => {
-                self.environment.map.insert(
+                self.environment.borrow_mut().map.insert(
                     name.clone(),
                     LoxValue::Function {
                         name: name.clone(),
