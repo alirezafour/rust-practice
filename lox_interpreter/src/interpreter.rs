@@ -175,7 +175,7 @@ impl Interpreter {
                             line: 0,
                             column: 0,
                         },
-                        message: "identifier {identifier} not defined.".into(),
+                        message: format!("identifier {identifier} not defined."),
                     });
                 }
                 return Ok(right_val);
@@ -206,7 +206,7 @@ impl Interpreter {
                 arguments,
             } => {
                 let identifier = self.evaluate(callee)?;
-                match identifier {
+                match &identifier {
                     LoxValue::Function {
                         name,
                         parameters,
@@ -214,12 +214,7 @@ impl Interpreter {
                     } => {
                         if arguments.len() != parameters.len() {
                             return Err(RuntimeError {
-                                token: Token {
-                                    token_type: TokenTypes::Identifier,
-                                    lexeme: "{identifier}".into(),
-                                    line: 0,
-                                    column: 0,
-                                },
+                                token: paren.clone(),
                                 message: format!(
                                     "function {name} expected {} params.",
                                     parameters.len()
@@ -236,9 +231,16 @@ impl Interpreter {
                             fun_env.borrow_mut().map.insert(pram_name.clone(), value);
                         }
                         self.environment = fun_env;
-                        let result = self.execute(&body)?;
-                        self.environment = old_env;
-                        Ok(result.unwrap_or(LoxValue::Nil))
+                        return match self.execute(&body) {
+                            Ok(result) => {
+                                self.environment = old_env;
+                                Ok(result.unwrap_or(LoxValue::Nil))
+                            }
+                            Err(err) => {
+                                self.environment = old_env;
+                                Err(err)
+                            }
+                        };
                     }
                     _ => Err(RuntimeError {
                         token: paren.clone(),
@@ -322,9 +324,17 @@ impl Interpreter {
                 self.environment = fun_env;
                 let mut out = None;
                 for stmt in data {
-                    out = self.execute(stmt)?;
-                    if out.is_some() {
-                        break;
+                    match self.execute(stmt) {
+                        Ok(val) => {
+                            out = val;
+                            if out.is_some() {
+                                break;
+                            }
+                        }
+                        Err(err) => {
+                            self.environment = old_env;
+                            return Err(err);
+                        }
                     }
                 }
                 self.environment = old_env;
@@ -448,7 +458,15 @@ impl Interpreter {
                 Ok(LoxValue::Number(a * b))
             }
             (LoxValue::Number(a), LoxValue::Number(b), TokenTypes::Slash) => {
-                Ok(LoxValue::Number(a / b))
+                let zero = f64::from(0);
+                if b == &zero {
+                    Err(RuntimeError {
+                        token: op.clone(),
+                        message: "division by 0.0 is not valid.".into(),
+                    })
+                } else {
+                    Ok(LoxValue::Number(a / b))
+                }
             }
             (LoxValue::String(a), LoxValue::String(b), TokenTypes::Plus) => {
                 let mut new = String::from(a);

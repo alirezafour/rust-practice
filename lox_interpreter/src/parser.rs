@@ -283,16 +283,15 @@ impl Parser {
         Ok(left)
     }
     fn unary(&mut self) -> Result<Expr, ParserError> {
-        let mut left = self.call()?;
         if self.check(TokenTypes::Minus) || self.check(TokenTypes::Bang) {
             let operation = self.advance();
-            let right = self.primary()?;
-            left = Expr::Unary {
+            let right = self.unary()?;
+            return Ok(Expr::Unary {
                 operation: operation,
                 right: Box::new(right),
-            };
+            });
         }
-        Ok(left)
+        self.call()
     }
     fn call(&mut self) -> Result<Expr, ParserError> {
         let mut left = self.primary()?;

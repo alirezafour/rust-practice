@@ -404,7 +404,16 @@ impl Scanner {
                                     't' => string_literal.push('\t'),
                                     '\\' => string_literal.push('\\'),
                                     '\"' => string_literal.push('\"'),
-                                    _ => panic!("Invalid escape sequence: \\{}", escaped),
+                                    _ => {
+                                        return Err(ScannerError {
+                                            line: self.line,
+                                            column: self.column,
+                                            message: format!(
+                                                "Invalid escape sequence: \\{}",
+                                                escaped
+                                            ),
+                                        });
+                                    }
                                 }
                             } else {
                                 return Err(ScannerError {
@@ -470,7 +479,7 @@ impl Scanner {
                     return Err(ScannerError {
                         line: self.line,
                         column: self.column,
-                        message: "Unknown character: {}".to_string(),
+                        message: format!("Unknown character: {}", c),
                     });
                 }
             }
