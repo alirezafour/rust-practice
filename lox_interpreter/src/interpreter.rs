@@ -50,7 +50,6 @@ impl std::fmt::Display for LoxValue {
                 write!(f, "Fun {}({:?})", name, parameters)?;
                 Ok(())
             }
-            _ => Err(std::fmt::Error),
         }
     }
 }
@@ -252,15 +251,6 @@ impl Interpreter {
                 name: String::new(),
                 parameters: params.clone(),
                 body: body.clone(),
-            }),
-            _ => Err(RuntimeError {
-                token: Token {
-                    token_type: TokenTypes::Eof,
-                    lexeme: "Eof".into(),
-                    line: 0,
-                    column: 0,
-                },
-                message: "expression not supported yet".into(),
             }),
         }
     }

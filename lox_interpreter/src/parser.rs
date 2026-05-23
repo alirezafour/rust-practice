@@ -1,5 +1,3 @@
-use std::fmt::format;
-
 pub struct ParserError {
     pub token: Token,
     pub message: String,

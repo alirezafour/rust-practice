@@ -8,7 +8,6 @@ pub struct ScannerError {
 
 pub struct Scanner {
     pub source_code: String,
-    pub current: usize,
     pub line: usize,
     pub column: usize,
 }
