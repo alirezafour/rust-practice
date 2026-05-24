@@ -6,6 +6,7 @@ mod scanner;
 
 fn main() {
     {
+        println!("====== Tokens:\n");
         let test_cases = vec![
             "!=",
             "!",
@@ -45,7 +46,14 @@ fn main() {
 
             let tokens = scanner.scan_tokens();
             match tokens {
-                Ok(tokens) => println!("Tokens: {:?}", tokens),
+                Ok(tokens) => {
+                    let tokens_out = tokens
+                        .iter()
+                        .map(|v| format!("{}", v))
+                        .collect::<Vec<_>>()
+                        .join(" ");
+                    println!("{}", tokens_out);
+                }
                 Err(err) => println!(
                     "error: {} at line[{}:{}].",
                     &err.message, &err.line, &err.column
@@ -83,7 +91,7 @@ fn main() {
                     let mut parser = Parser::new(tokens);
                     let expr = parser.assignment();
                     match expr {
-                        Ok(expr) => println!("==\nexpr: {expr:?}"),
+                        Ok(expr) => println!("==\n{}", expr),
                         Err(err) => println!(
                             "error: {} at line[{}:{}].",
                             err.message, err.token.line, err.token.column
@@ -129,7 +137,7 @@ fn main() {
                     let mut parser = Parser::new(tokens);
                     let stmt = parser.parse_statement();
                     match stmt {
-                        Ok(stmt) => println!("==\nstmt: {stmt:?}"),
+                        Ok(stmt) => println!("==\n{}", stmt),
                         Err(err) => println!(
                             "error: {} at line[{}:{}].",
                             err.message, err.token.line, err.token.column

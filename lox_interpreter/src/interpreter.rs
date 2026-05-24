@@ -1,10 +1,10 @@
+use crate::scanner::{Expr, Stmt, Token, TokenTypes};
+use std::{cell::RefCell, collections::HashMap, rc::Rc};
+
 pub struct RuntimeError {
     pub token: Token,
     pub message: String,
 }
-
-use crate::parser::{Expr, Stmt, Token, TokenTypes};
-use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
 #[derive(Clone)]
 pub enum LoxValue {

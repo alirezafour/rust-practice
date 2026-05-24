@@ -220,3 +220,13 @@ At the end of every conversation where the user learns a new concept, completes 
 - **Phase 3 approach:** Split eval into `binary_eval` → `arithmetic_eval`/`comparison_eval`/`equality_eval` methods with tuple matching `(left, right, op)`. Used `PartialEq` derive for equality instead of manual comparison. Implemented `std::fmt::Display` for `LoxValue` to clean up print. Used `is_truthy` helper for unary `!`. `Option` chain `as_ref().map().unwrap_or()` for `var x;` (nil default).
 - **Refactoring instinct:** User proactively refactored `parse_statement` into dispatcher + individual methods, made `parse_block` self-contained (consumes own `{`), improved code reuse for lambda and function. Suggested using `check` instead of `check_and_advance` in `parse_statement` for cleaner delegation.
 - **Rust ownership:** Solidified understanding of `String` vs `&str`, slicing, `starts_with`, `parse::<f64>()`, `Clone` vs `Copy` (uses `*v` for bool instead of `v.clone()`). `&Expr` borrowing for AST traversal is natural now.
+
+## graphify
+
+This project has a graphify knowledge graph at graphify-out/.
+
+Rules:
+- Before answering architecture or codebase questions, read graphify-out/GRAPH_REPORT.md for god nodes and community structure
+- If graphify-out/wiki/index.md exists, navigate it instead of reading raw files
+- For cross-module "how does X relate to Y" questions, prefer `graphify query "<question>"`, `graphify path "<A>" "<B>"`, or `graphify explain "<concept>"` over grep — these traverse the graph's EXTRACTED + INFERRED edges instead of scanning files
+- After modifying code files in this session, run `graphify update .` to keep the graph current (AST-only, no API cost)

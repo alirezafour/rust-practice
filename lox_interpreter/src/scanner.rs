@@ -1,4 +1,228 @@
-use crate::parser::{Token, TokenTypes};
+#[derive(Debug, Clone, PartialEq)]
+pub enum TokenTypes {
+    LeftParen,
+    RightParen,
+    LeftBrace,
+    RightBrace,
+    Comma,
+    Dot,
+    Minus,
+    Plus,
+    Semicolon,
+    Slash,
+    Star,
+    Bang,
+    BangEqual,
+    Equal,
+    EqualEqual,
+    Greater,
+    GreaterEqual,
+    Less,
+    LessEqual,
+    Identifier,
+    String,
+    Number,
+    And,
+    Class,
+    Else,
+    False,
+    Fun,
+    For,
+    If,
+    Nil,
+    Or,
+    Print,
+    Return,
+    Super,
+    This,
+    True,
+    Var,
+    While,
+    Eof,
+}
+
+#[derive(Clone, PartialEq)]
+pub struct Token {
+    pub token_type: TokenTypes,
+    pub lexeme: String,
+    pub line: usize,
+    pub column: usize,
+}
+
+impl std::fmt::Display for Token {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", &self.lexeme)
+    }
+}
+
+#[derive(Clone, PartialEq)]
+pub enum Expr {
+    Literal {
+        identifier: String,
+    },
+    Binary {
+        left: Box<Expr>,
+        operation: Token,
+        right: Box<Expr>,
+    },
+    Unary {
+        operation: Token,
+        right: Box<Expr>,
+    },
+    Grouping {
+        expression: Box<Expr>,
+    },
+    Assign {
+        identifier: String,
+        right: Box<Expr>,
+    },
+    Logical {
+        left: Box<Expr>,
+        logical: Token,
+        right: Box<Expr>,
+    },
+    Call {
+        callee: Box<Expr>,
+        paren: Token,
+        arguments: Vec<Expr>,
+    },
+    Lambda {
+        params: Vec<String>,
+        body: Box<Stmt>,
+    },
+}
+
+impl std::fmt::Display for Expr {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Expr::Literal { identifier } => write!(f, "{}", identifier),
+            Expr::Binary {
+                left,
+                operation,
+                right,
+            } => write!(f, "({} {} {})", operation, left.as_ref(), right.as_ref()),
+            Expr::Unary { operation, right } => write!(f, "({} {})", operation, right.as_ref()),
+            Expr::Grouping { expression } => write!(f, "(group {})", expression.as_ref()),
+            Expr::Assign { identifier, right } => write!(f, "(= {} {})", identifier, right),
+            Expr::Logical {
+                left,
+                logical,
+                right,
+            } => write!(f, "({} {} {})", logical, left, right),
+            Expr::Call {
+                callee,
+                paren,
+                arguments,
+            } => {
+                let params = arguments
+                    .iter()
+                    .map(|v| format!("{}", v))
+                    .collect::<Vec<_>>()
+                    .join(" ");
+                write!(f, "(call {} {})", callee.as_ref(), params)
+            }
+            Expr::Lambda { params, body } => {
+                write!(f, "(lambda {} {})", params.join(" "), body.as_ref())
+            }
+        }
+    }
+}
+
+#[derive(Clone, PartialEq)]
+pub enum Stmt {
+    Block {
+        data: Vec<Stmt>,
+    },
+    Var {
+        name: String,
+        value: Option<Expr>,
+    },
+    Expression {
+        expr: Expr,
+    },
+    Print {
+        expr: Expr,
+    },
+    While {
+        condition: Expr,
+        body: Box<Stmt>,
+    },
+    If {
+        condition: Expr,
+        body: Box<Stmt>,
+        else_branch: Option<Box<Stmt>>,
+    },
+    Return {
+        value: Option<Expr>,
+    },
+    Function {
+        name: String,
+        params: Vec<String>,
+        body: Box<Stmt>,
+    },
+    Class {
+        name: String,
+        functions: Box<Stmt>,
+        members: Vec<String>,
+    },
+}
+
+impl std::fmt::Display for Stmt {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Stmt::Print { expr } => write!(f, "(print {})", expr),
+            Stmt::Var { name, value } => {
+                let val = match value {
+                    Some(v) => format!(" {}", v),
+                    None => "".into(),
+                };
+                write!(f, "(var {}{})", name, val)
+            }
+            Stmt::Expression { expr } => write!(f, "(expr {})", expr),
+            Stmt::Block { data } => {
+                let data_out = data
+                    .iter()
+                    .map(|v| format!("{}", v))
+                    .collect::<Vec<_>>()
+                    .join(" ");
+                write!(f, "(block {})", data_out)
+            }
+            Stmt::If {
+                condition,
+                body,
+                else_branch,
+            } => {
+                let else_out = match else_branch {
+                    Some(v) => format!(" else {}", v),
+                    None => "".into(),
+                };
+                write!(f, "(if {} {}{})", condition, body.as_ref(), else_out)
+            }
+            Stmt::While { condition, body } => write!(f, "(while {} {})", condition, body.as_ref()),
+            Stmt::Function { name, params, body } => {
+                write!(f, "(fun {} {} {})", name, params.join(" "), body.as_ref())
+            }
+            Stmt::Return { value } => {
+                let val = match value {
+                    Some(v) => format!(" {}", v),
+                    None => "".into(),
+                };
+                write!(f, "(return{})", val)
+            }
+            Stmt::Class {
+                name,
+                functions,
+                members,
+            } => write!(
+                f,
+                "(class {} {} {})",
+                name,
+                functions.as_ref(),
+                members.join(" ")
+            ),
+        }
+    }
+}
 
 pub struct ScannerError {
     pub message: String,
@@ -490,5 +714,15 @@ impl Scanner {
             column: 0,
         });
         Ok(tokens)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn token_tests() {
+        assert_eq!(true, true);
     }
 }
