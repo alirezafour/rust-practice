@@ -949,4 +949,81 @@ mod tests {
         let expr = parser.assignment().unwrap();
         assert_eq!(expr, expected);
     }
+
+    // --- Negative (error) tests ---
+
+    fn parse_expr_from(source: &str) -> Result<Expr, ParserError> {
+        let mut scanner = Scanner { source_code: source.into(), line: 1, column: 0 };
+        let tokens = scanner.scan_tokens().unwrap();
+        let mut parser = Parser::new(tokens);
+        parser.assignment()
+    }
+
+    fn parse_program_from(source: &str) -> Result<Vec<Stmt>, ParserError> {
+        let mut scanner = Scanner { source_code: source.into(), line: 1, column: 0 };
+        let tokens = scanner.scan_tokens().unwrap();
+        let mut parser = Parser::new(tokens);
+        parser.parse_program()
+    }
+
+    fn assert_parse_error<T: std::fmt::Debug>(result: Result<T, ParserError>, expected_substring: &str) {
+        assert!(result.is_err(), "expected parse error but got: {:?}", result);
+        let err = result.unwrap_err();
+        assert!(err.message.contains(expected_substring),
+            "error message '{}' did not contain '{}'", err.message, expected_substring);
+    }
+
+    #[test]
+    fn parse_error_missing_semicolon() {
+        let result = parse_program_from("print 1");
+        assert_parse_error(result, "expected ';'");
+    }
+
+    #[test]
+    fn parse_error_var_missing_name() {
+        let result = parse_program_from("var = 5;");
+        assert_parse_error(result, "expected");
+    }
+
+    #[test]
+    fn parse_error_if_missing_paren() {
+        let result = parse_program_from("if true) print 1;");
+        assert_parse_error(result, "expected");
+    }
+
+    #[test]
+    fn parse_error_while_missing_paren() {
+        let result = parse_program_from("while true) print 1;");
+        assert_parse_error(result, "expected");
+    }
+
+    #[test]
+    fn parse_error_unclosed_grouping() {
+        let result = parse_expr_from("(1 + 2");
+        assert_parse_error(result, "expected");
+    }
+
+    #[test]
+    fn parse_error_unclosed_block() {
+        let result = parse_program_from("{ print 1;");
+        assert_parse_error(result, "expected");
+    }
+
+    #[test]
+    fn parse_error_function_missing_name() {
+        let result = parse_program_from("fun (a) { return a; }");
+        assert_parse_error(result, "expected");
+    }
+
+    #[test]
+    fn parse_error_call_unclosed_paren() {
+        let result = parse_expr_from("foo(1, 2");
+        assert_parse_error(result, "expected");
+    }
+
+    #[test]
+    fn parse_error_for_missing_paren() {
+        let result = parse_program_from("for var i = 0; i < 3; i = i + 1) print i;");
+        assert_parse_error(result, "expected");
+    }
 }

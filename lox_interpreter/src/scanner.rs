@@ -1010,4 +1010,53 @@ mod tests {
             assert_eq!(tokens[idx].lexeme, expected_lexemes[idx]);
         }
     }
+
+    // --- Negative (error) tests ---
+
+    fn assert_scan_error(source: &str, expected_substring: &str) {
+        let mut scanner = Scanner {
+            source_code: source.into(),
+            line: 1,
+            column: 0,
+        };
+        let result = scanner.scan_tokens();
+        assert!(result.is_err(), "expected error but got tokens: {:?}", result);
+        let err = result.unwrap_err();
+        assert!(
+            err.message.contains(expected_substring),
+            "error message '{}' did not contain '{}'",
+            err.message,
+            expected_substring
+        );
+    }
+
+    #[test]
+    fn scan_error_unterminated_string() {
+        assert_scan_error("\"hello", "Unterminated string literal");
+    }
+
+    #[test]
+    fn scan_error_unterminated_string_multiline() {
+        assert_scan_error("\"line1\n", "Unexpected new line in string literal");
+    }
+
+    #[test]
+    fn scan_error_invalid_escape() {
+        assert_scan_error("\"\\q\"", "Invalid escape sequence");
+    }
+
+    #[test]
+    fn scan_error_unknown_char() {
+        assert_scan_error("@", "Unknown character");
+    }
+
+    #[test]
+    fn scan_error_number_then_letter() {
+        assert_scan_error("12.5abc", "Unexpected character after number");
+    }
+
+    #[test]
+    fn scan_error_unexpected_newline_in_escape() {
+        assert_scan_error("\"test\\", "Unterminated escape sequence");
+    }
 }

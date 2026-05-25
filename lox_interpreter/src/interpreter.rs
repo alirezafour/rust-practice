@@ -677,4 +677,88 @@ mod tests {
     fn inter_nested_function() {
         assert_program_ok("fun outer() { fun inner() { return 1; } return inner(); } print outer();");
     }
+
+    // --- Negative (error) tests ---
+
+    fn assert_runtime_error(source: &str, expected_substring: &str) {
+        let mut scanner = Scanner {
+            source_code: source.into(),
+            line: 1,
+            column: 0,
+        };
+        let tokens = scanner.scan_tokens().unwrap();
+        let mut parser = Parser::new(tokens);
+        let statements = parser.parse_program().unwrap();
+        let mut inter = Interpreter::new();
+        for stmt in &statements {
+            let result = inter.execute(stmt);
+            if result.is_err() {
+                let err = result.unwrap_err();
+                assert!(
+                    err.message.contains(expected_substring),
+                    "error message '{}' did not contain '{}'",
+                    err.message,
+                    expected_substring
+                );
+                return;
+            }
+        }
+        panic!(
+            "expected runtime error containing '{}' but program completed successfully",
+            expected_substring
+        );
+    }
+
+    #[test]
+    fn runtime_error_undefined_variable() {
+        assert_runtime_error("print x;", "not found");
+    }
+
+    #[test]
+    fn runtime_error_assign_undefined() {
+        assert_runtime_error("x = 5;", "not defined");
+    }
+
+    #[test]
+    fn runtime_error_add_string_number() {
+        assert_runtime_error(r#"print 1 + "hello";"#, "wrong call/type to arithmetic.");
+    }
+
+    #[test]
+    fn runtime_error_divide_by_zero() {
+        assert_runtime_error("print 10 / 0;", "division by");
+    }
+
+    #[test]
+    fn runtime_error_negate_non_number() {
+        assert_runtime_error(r#"print -"hello";"#, "expected right side to be number or bool.");
+    }
+
+    #[test]
+    fn runtime_error_compare_string() {
+        assert_runtime_error(r#"print "a" < "b";"#, "unexpected call for comparison");
+    }
+
+    #[test]
+    fn runtime_error_call_non_function() {
+        assert_runtime_error("var x = 5; print x();", "expected function.");
+    }
+
+    #[test]
+    fn runtime_error_wrong_arity() {
+        assert_runtime_error(
+            "fun f(a) { return a; } print f(1, 2);",
+            "expected 1 params.",
+        );
+    }
+
+    #[test]
+    fn runtime_error_equality_incompatible() {
+        assert_runtime_error(r#"print 1 == "hello";"#, "wrong call/type to equality.");
+    }
+
+    #[test]
+    fn runtime_error_arithmetic_non_number() {
+        assert_runtime_error("print true + 1;", "wrong call/type to arithmetic.");
+    }
 }
