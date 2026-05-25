@@ -41,7 +41,7 @@ pub enum TokenTypes {
     Eof,
 }
 
-#[derive(Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Token {
     pub token_type: TokenTypes,
     pub lexeme: String,
@@ -55,7 +55,7 @@ impl std::fmt::Display for Token {
     }
 }
 
-#[derive(Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Expr {
     Literal {
         identifier: String,
@@ -128,7 +128,7 @@ impl std::fmt::Display for Expr {
     }
 }
 
-#[derive(Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Stmt {
     Block {
         data: Vec<Stmt>,
@@ -224,6 +224,7 @@ impl std::fmt::Display for Stmt {
     }
 }
 
+#[derive(Debug)]
 pub struct ScannerError {
     pub message: String,
     pub line: usize,
@@ -722,7 +723,118 @@ mod tests {
     use super::*;
 
     #[test]
-    fn token_tests() {
-        assert_eq!(true, true);
+    fn scans_number() {
+        let mut scanner = Scanner {
+            source_code: "12.5".into(),
+            line: 1,
+            column: 0,
+        };
+        let tokens = scanner.scan_tokens().unwrap();
+        assert_eq!(tokens.len(), 2); // Number + EOF
+        assert_eq!(tokens[0].token_type, TokenTypes::Number);
+        assert_eq!(tokens[0].lexeme, "12.5");
+
+        let mut scanner = Scanner {
+            source_code: "12".into(),
+            line: 1,
+            column: 0,
+        };
+        let tokens = scanner.scan_tokens().unwrap();
+        assert_eq!(tokens.len(), 2); // Number + EOF
+        assert_eq!(tokens[0].token_type, TokenTypes::Number);
+        assert_eq!(tokens[0].lexeme, "12");
+    }
+
+    #[test]
+    fn scans_identifier() {
+        let mut scanner = Scanner {
+            source_code: "abc".into(),
+            line: 1,
+            column: 0,
+        };
+        let tokens = scanner.scan_tokens().unwrap();
+        assert_eq!(tokens.len(), 2);
+        assert_eq!(tokens[0].token_type, TokenTypes::Identifier);
+        assert_eq!(tokens[0].lexeme, "abc");
+    }
+
+    #[test]
+    fn scans_reserved() {
+        let source = "if while for var".to_string();
+        let expected_tokens = vec![
+            TokenTypes::If,
+            TokenTypes::While,
+            TokenTypes::For,
+            TokenTypes::Var,
+        ];
+        let split: Vec<&str> = source.split(" ").collect::<Vec<_>>();
+        let mut scanner = Scanner {
+            source_code: source.clone(),
+            line: 1,
+            column: 0,
+        };
+        let tokens = scanner.scan_tokens().unwrap();
+        assert_eq!(tokens.len(), expected_tokens.len() + 1);
+        for idx in 0..expected_tokens.len() {
+            assert_eq!(tokens[idx].token_type, expected_tokens[idx]);
+            assert_eq!(tokens[idx].lexeme, split[idx]);
+        }
+    }
+
+    #[test]
+    fn scans_brace_and_paren() {
+        let source = "( ) { }".to_string();
+        let expected_tokens = vec![
+            TokenTypes::LeftParen,
+            TokenTypes::RightParen,
+            TokenTypes::LeftBrace,
+            TokenTypes::RightBrace,
+        ];
+        let split: Vec<&str> = source.split(" ").collect::<Vec<_>>();
+        let mut scanner = Scanner {
+            source_code: source.clone(),
+            line: 1,
+            column: 0,
+        };
+        let tokens = scanner.scan_tokens().unwrap();
+        assert_eq!(tokens.len(), expected_tokens.len() + 1);
+        for idx in 0..expected_tokens.len() {
+            assert_eq!(tokens[idx].token_type, expected_tokens[idx]);
+            assert_eq!(tokens[idx].lexeme, split[idx]);
+        }
+    }
+
+    #[test]
+    fn scans_symbols() {
+        let source = ", . - + ; / * ! != = == > >= < <=".to_string();
+        let expected_tokens = vec![
+            TokenTypes::Comma,
+            TokenTypes::Dot,
+            TokenTypes::Minus,
+            TokenTypes::Plus,
+            TokenTypes::Semicolon,
+            TokenTypes::Slash,
+            TokenTypes::Star,
+            TokenTypes::Bang,
+            TokenTypes::BangEqual,
+            TokenTypes::Equal,
+            TokenTypes::EqualEqual,
+            TokenTypes::Greater,
+            TokenTypes::GreaterEqual,
+            TokenTypes::Less,
+            TokenTypes::LessEqual,
+        ];
+        let split: Vec<&str> = source.split(" ").collect::<Vec<_>>();
+        let mut scanner = Scanner {
+            source_code: source.clone(),
+            line: 1,
+            column: 0,
+        };
+        let tokens = scanner.scan_tokens().unwrap();
+        assert_eq!(tokens.len(), expected_tokens.len() + 1);
+        for idx in 0..expected_tokens.len() {
+            assert_eq!(tokens[idx].token_type, expected_tokens[idx]);
+            assert_eq!(tokens[idx].lexeme, split[idx]);
+        }
     }
 }

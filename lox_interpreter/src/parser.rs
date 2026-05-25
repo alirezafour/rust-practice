@@ -1,5 +1,6 @@
 use crate::scanner::{Expr, Stmt, Token, TokenTypes};
 
+#[derive(Debug)]
 pub struct ParserError {
     pub token: Token,
     pub message: String,
@@ -410,5 +411,84 @@ impl Parser {
             params: params,
             body: Box::new(body),
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::scanner::Scanner;
+
+    #[test]
+    fn exprs_assign() {
+        let mut scanner = Scanner {
+            source_code: "x=2".into(),
+            line: 1,
+            column: 0,
+        };
+        let expected = Expr::Assign {
+            identifier: "x".into(),
+            right: Box::new(Expr::Literal {
+                identifier: "2".into(),
+            }),
+        };
+
+        let tokens = scanner.scan_tokens().unwrap();
+        let mut parser = Parser::new(tokens);
+        let expr = parser.assignment().unwrap();
+        assert_eq!(expr, expected);
+    }
+
+    #[test]
+    fn exprs_binary() {
+        let mut scanner = Scanner {
+            source_code: "x==2".into(),
+            line: 1,
+            column: 0,
+        };
+        let expected = Expr::Binary {
+            left: Box::new(Expr::Literal {
+                identifier: "x".into(),
+            }),
+            operation: Token {
+                token_type: TokenTypes::EqualEqual,
+                lexeme: "==".into(),
+                line: 1,
+                column: 2,
+            },
+            right: Box::new(Expr::Literal {
+                identifier: "2".into(),
+            }),
+        };
+
+        let tokens = scanner.scan_tokens().unwrap();
+        let mut parser = Parser::new(tokens);
+        let expr = parser.assignment().unwrap();
+        assert_eq!(expr, expected);
+
+        let mut scanner = Scanner {
+            source_code: "3>2".into(),
+            line: 1,
+            column: 0,
+        };
+        let expected = Expr::Binary {
+            left: Box::new(Expr::Literal {
+                identifier: "3".into(),
+            }),
+            operation: Token {
+                token_type: TokenTypes::Greater,
+                lexeme: ">".into(),
+                line: 1,
+                column: 2,
+            },
+            right: Box::new(Expr::Literal {
+                identifier: "2".into(),
+            }),
+        };
+
+        let tokens = scanner.scan_tokens().unwrap();
+        let mut parser = Parser::new(tokens);
+        let expr = parser.assignment().unwrap();
+        assert_eq!(expr, expected);
     }
 }

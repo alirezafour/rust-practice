@@ -1,12 +1,13 @@
 use crate::scanner::{Expr, Stmt, Token, TokenTypes};
 use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
+#[derive(Debug)]
 pub struct RuntimeError {
     pub token: Token,
     pub message: String,
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum LoxValue {
     Nil,
     Bool(bool),
@@ -56,6 +57,7 @@ impl std::fmt::Display for LoxValue {
     }
 }
 
+#[derive(Debug, PartialEq)]
 struct Environment {
     map: HashMap<String, LoxValue>,
     parent: Option<Rc<RefCell<Environment>>>,
@@ -496,6 +498,60 @@ impl Interpreter {
                 token: op.clone(),
                 message: "wrong call/type to arithmetic.".into(),
             }),
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::{parser::Parser, scanner::Scanner};
+
+    use super::*;
+
+    #[test]
+    fn inter_var() {
+        let mut scanner = Scanner {
+            source_code: "var x = 2;".into(),
+            line: 1,
+            column: 0,
+        };
+        let expected = None;
+        let tokens = scanner.scan_tokens().unwrap();
+        let mut parser = Parser::new(tokens);
+        let statements = parser.parse_program().unwrap();
+        let mut inter = Interpreter::new();
+        for stmt in statements {
+            let result = inter.execute(&stmt).unwrap();
+            assert_eq!(result, expected);
+        }
+    }
+
+    #[test]
+    fn inter_fun_capture() {
+        let mut scanner = Scanner {
+            source_code: "fun makeCounter() {
+                            var count = 0;
+                            fun counter() {
+                              count = count + 1;
+                              return count;
+                            }
+                            return counter;
+                          }
+                        
+                          var c = makeCounter();
+                          print c();  // should print 1
+                          print c();  // should print 2"
+                .into(),
+            line: 1,
+            column: 0,
+        };
+        let expected = vec![None, None, None, None];
+        let tokens = scanner.scan_tokens().unwrap();
+        let mut parser = Parser::new(tokens);
+        let statements = parser.parse_program().unwrap();
+        let mut inter = Interpreter::new();
+        for (stmt, exp) in statements.iter().zip(expected.iter()) {
+            assert_eq!(inter.execute(&stmt).unwrap(), *exp);
         }
     }
 }

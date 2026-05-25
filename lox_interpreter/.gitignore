@@ -6,3 +6,4 @@ target
 **/graphify-out/cache
 **/graphify-out/manifest.json
 **/graphify-out/cost.json
+.serena/
