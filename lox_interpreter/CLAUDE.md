@@ -99,6 +99,10 @@ The user thinks in C++. Use that to accelerate learning:
 | RAII | Ownership + Drop trait (same idea, compiler-enforced) |
 | `virtual` / polymorphism | `enum` + `match` (often preferred) or trait objects |
 | `nullptr` | `None` / no nulls exist in Rust |
+| pure virtual class / interface | `trait` (no data, only method signatures) |
+| `template <typename T> requires X` | generics with trait bounds: `fn foo<T: Display>(...)` |
+| `operator+` overloading | `impl std::ops::Add for Type` |
+| implicit conversion constructor | `impl From<Other> for Type` / `.into()` |
 
 ### Learning Roadmap (teach in this order, one phase at a time)
 
@@ -127,8 +131,21 @@ The compiler is built incrementally. Each phase introduces specific Rust concept
 **Phase 5 — Advanced Lox Features**
 - Closures and lexical scoping (environments linked as a chain)
 - Functions as first-class values
-- Classes and inheritance (stretch goal)
+- Classes and inheritance
 - These introduce: `Rc<T>`, `RefCell<T>`, lifetimes, more complex `enum` variants
+
+**Phase 6 — Idiomatic Rust: Traits**
+- Rust concepts: custom traits, trait bounds, default methods, `dyn Trait`, associated types, `From`/`Into`, `std::error::Error`, `Iterator`, operator overloading
+- Goal: Refactor the interpreter to use idiomatic trait patterns where they genuinely improve the code
+- C++ bridge: "A trait is like a pure virtual base class — a contract that any type can implement. But unlike C++, you can implement a trait for someone else's type (no need to modify the original type). And the compiler verifies everything at compile time"
+- **Do NOT introduce traits prematurely.** Only refactor to use a trait when it removes real duplication or enables real functionality the current code can't express.
+- Natural entry points in this project:
+  - `std::error::Error` for the existing error types (quick win, teaches trait impl)
+  - `Iterator` for the scanner (teaches associated types + the most important trait in Rust)
+  - `From`/`Into` for error type conversions (teaches standard conversion traits)
+  - `Display` already done for `LoxValue` — this was their first trait impl
+  - `Visitor` trait as an alternative to the current `match`-based interpreter (teaches generics + trait objects, but only if the user wants to explore the design tradeoff)
+  - Operator overloading traits (`Add`, `Sub`, etc.) are *not* a great fit here since `LoxValue` arithmetic needs runtime type checking
 
 ### MANDATORY: Update the Learning Tracker
 
@@ -150,8 +167,8 @@ At the end of every conversation where the user learns a new concept, completes 
 
 ## Learning Tracker
 
-**Current phase:** Phase 5 — Advanced Lox Features
-**Next step:** Classes and inheritance (stretch goal), or Rust testing / REPL mode
+**Current phase:** Phase 5 — Advanced Lox Features (classes remaining)
+**Next step:** Classes and inheritance, then Phase 6 — Idiomatic Rust: Traits
 
 ### Phase 1 — Tokenizer (Lexer) ✅ COMPLETE
 - [x] `enum` definition and variants (`TokenType` + `Token` struct)
@@ -213,7 +230,19 @@ At the end of every conversation where the user learns a new concept, completes 
 - [x] Lambdas (`fun (params) { body }`) — `Expr::Lambda` creates anonymous `LoxValue::Function`
 - [x] `PartialEq` removed from `LoxValue` derive — manual `values_equal` helper for equality comparison (functions not comparable)
 - [x] Bug fixes: `unary()` parser order, error message interpolation, env restore on error, division by zero, escape sequence `Err` not `panic!`, unknown char message
-- [ ] Classes and inheritance (stretch goal)
+- [ ] Classes and inheritance
+
+### Phase 6 — Idiomatic Rust: Traits
+- [x] `#[derive(Debug, Clone, PartialEq)]` — auto-implemented traits (Phase 1-2)
+- [x] `impl std::fmt::Display for LoxValue` — first manual trait impl (Phase 3)
+- [ ] `std::error::Error` — implementing the standard error trait for `RuntimeError`, `ParserError`, `ScannerError`
+- [ ] `Iterator` trait — implementing for scanner (associated type `Item`, `next()` method, lazy evaluation)
+- [ ] `From`/`Into` — standard conversion traits for error types or value conversions
+- [ ] Custom trait definitions — defining your own trait (e.g., a `Visitor` trait, or a `LoxCallable` trait)
+- [ ] Trait bounds on generics — constraining `fn foo<T: SomeTrait>(...)`
+- [ ] Default trait methods — providing default implementations in trait definitions
+- [ ] `dyn Trait` — trait objects for runtime polymorphism (relevant if classes need dynamic dispatch)
+- [ ] Operator overloading — `impl std::ops::Add` etc. (lower priority for this project)
 
 ### Notes
 - **Phase 2 patterns:** User quickly grasped recursive descent once the precedence chain was explained with `2 + 3 * 4`. Key hurdles: `check` vs `check_and_advance` (consuming tokens), assignment "parse first then check", and `or`/`and` needing their own `Logical` variant. Extracted helpers (`check_semicolon`, `expect`) without prompting. Renamed TokenTypes to PascalCase.

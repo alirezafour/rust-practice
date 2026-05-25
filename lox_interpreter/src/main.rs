@@ -10,7 +10,7 @@ mod interpreter;
 mod parser;
 mod scanner;
 
-fn run(source: &str) -> Vec<Stmt> {
+fn get_statements(source: &str) -> Vec<Stmt> {
     let mut scanner = Scanner {
         source_code: String::from(source),
         line: 1,
@@ -49,7 +49,7 @@ fn looped() {
         std::io::stdin()
             .read_line(&mut buf)
             .expect("failed to read line.");
-        let statements = run(&buf);
+        let statements = get_statements(&buf);
         for stmt in statements {
             match interpreter.execute(&stmt) {
                 Ok(_) => {}

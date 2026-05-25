@@ -837,4 +837,177 @@ mod tests {
             assert_eq!(tokens[idx].lexeme, split[idx]);
         }
     }
+
+    #[test]
+    fn scans_string() {
+        let mut scanner = Scanner {
+            source_code: "\"hello world\"".into(),
+            line: 1,
+            column: 0,
+        };
+        let tokens = scanner.scan_tokens().unwrap();
+        assert_eq!(tokens.len(), 2); // String + EOF
+        assert_eq!(tokens[0].token_type, TokenTypes::String);
+        assert_eq!(tokens[0].lexeme, "\"hello world\"");
+    }
+
+    #[test]
+    fn scans_string_with_escapes() {
+        let mut scanner = Scanner {
+            source_code: "\"line1\\nline2\"".into(),
+            line: 1,
+            column: 0,
+        };
+        let tokens = scanner.scan_tokens().unwrap();
+        assert_eq!(tokens.len(), 2);
+        assert_eq!(tokens[0].token_type, TokenTypes::String);
+        assert_eq!(tokens[0].lexeme, "\"line1\nline2\"");
+    }
+
+    #[test]
+    fn scans_all_keywords() {
+        let source = "and class else false fun for if nil or print return super this true var while".to_string();
+        let expected_tokens = vec![
+            TokenTypes::And,
+            TokenTypes::Class,
+            TokenTypes::Else,
+            TokenTypes::False,
+            TokenTypes::Fun,
+            TokenTypes::For,
+            TokenTypes::If,
+            TokenTypes::Nil,
+            TokenTypes::Or,
+            TokenTypes::Print,
+            TokenTypes::Return,
+            TokenTypes::Super,
+            TokenTypes::This,
+            TokenTypes::True,
+            TokenTypes::Var,
+            TokenTypes::While,
+        ];
+        let split: Vec<&str> = source.split(" ").collect::<Vec<_>>();
+        let mut scanner = Scanner {
+            source_code: source.clone(),
+            line: 1,
+            column: 0,
+        };
+        let tokens = scanner.scan_tokens().unwrap();
+        assert_eq!(tokens.len(), expected_tokens.len() + 1); // keywords + EOF
+        for idx in 0..expected_tokens.len() {
+            assert_eq!(tokens[idx].token_type, expected_tokens[idx]);
+            assert_eq!(tokens[idx].lexeme, split[idx]);
+        }
+    }
+
+    #[test]
+    fn scans_multiple_numbers() {
+        let source = "1 2.5 100 0.0".to_string();
+        let expected_lexemes = vec!["1", "2.5", "100", "0.0"];
+        let mut scanner = Scanner {
+            source_code: source,
+            line: 1,
+            column: 0,
+        };
+        let tokens = scanner.scan_tokens().unwrap();
+        assert_eq!(tokens.len(), 5); // 4 numbers + EOF
+        for idx in 0..4 {
+            assert_eq!(tokens[idx].token_type, TokenTypes::Number);
+            assert_eq!(tokens[idx].lexeme, expected_lexemes[idx]);
+        }
+    }
+
+    #[test]
+    fn scans_line_tracking() {
+        let source = "1\n2\n3".to_string();
+        let mut scanner = Scanner {
+            source_code: source,
+            line: 1,
+            column: 0,
+        };
+        let tokens = scanner.scan_tokens().unwrap();
+        assert_eq!(tokens.len(), 4); // 3 numbers + EOF
+        assert_eq!(tokens[0].line, 1);
+        assert_eq!(tokens[0].lexeme, "1");
+        assert_eq!(tokens[1].line, 2);
+        assert_eq!(tokens[1].lexeme, "2");
+        assert_eq!(tokens[2].line, 3);
+        assert_eq!(tokens[2].lexeme, "3");
+    }
+
+    #[test]
+    fn scans_comments() {
+        let source = "42 // this is a comment".to_string();
+        let mut scanner = Scanner {
+            source_code: source,
+            line: 1,
+            column: 0,
+        };
+        let tokens = scanner.scan_tokens().unwrap();
+        assert_eq!(tokens.len(), 2); // Number + EOF (comment is skipped)
+        assert_eq!(tokens[0].token_type, TokenTypes::Number);
+        assert_eq!(tokens[0].lexeme, "42");
+    }
+
+    #[test]
+    fn scans_whitespace() {
+        let source = "  42  ".to_string();
+        let mut scanner = Scanner {
+            source_code: source,
+            line: 1,
+            column: 0,
+        };
+        let tokens = scanner.scan_tokens().unwrap();
+        assert_eq!(tokens.len(), 2); // Number + EOF
+        assert_eq!(tokens[0].token_type, TokenTypes::Number);
+        assert_eq!(tokens[0].lexeme, "42");
+    }
+
+    #[test]
+    fn scans_eof() {
+        let mut scanner = Scanner {
+            source_code: "42".into(),
+            line: 1,
+            column: 0,
+        };
+        let tokens = scanner.scan_tokens().unwrap();
+        assert!(tokens.len() >= 1);
+        assert_eq!(tokens.last().unwrap().token_type, TokenTypes::Eof);
+    }
+
+    #[test]
+    fn scans_empty_source() {
+        let mut scanner = Scanner {
+            source_code: "".into(),
+            line: 1,
+            column: 0,
+        };
+        let tokens = scanner.scan_tokens().unwrap();
+        assert_eq!(tokens.len(), 1); // only EOF
+        assert_eq!(tokens[0].token_type, TokenTypes::Eof);
+    }
+
+    #[test]
+    fn scans_expression() {
+        let source = "1 + 2 * 3".to_string();
+        let expected_types = vec![
+            TokenTypes::Number,
+            TokenTypes::Plus,
+            TokenTypes::Number,
+            TokenTypes::Star,
+            TokenTypes::Number,
+            TokenTypes::Eof,
+        ];
+        let expected_lexemes = vec!["1", "+", "2", "*", "3", ""];
+        let mut scanner = Scanner {
+            source_code: source,
+            line: 1,
+            column: 0,
+        };
+        let tokens = scanner.scan_tokens().unwrap();
+        assert_eq!(tokens.len(), expected_types.len());
+        for idx in 0..expected_types.len() {
+            assert_eq!(tokens[idx].token_type, expected_types[idx]);
+            assert_eq!(tokens[idx].lexeme, expected_lexemes[idx]);
+        }
+    }
 }

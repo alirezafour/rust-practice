@@ -386,7 +386,7 @@ impl Interpreter {
             | TokenTypes::Less
             | TokenTypes::LessEqual
             | TokenTypes::GreaterEqual => return self.comparison_eval(left, right, &op),
-            TokenTypes::Equal | TokenTypes::BangEqual => self.equality_eval(left, right, &op),
+            TokenTypes::EqualEqual | TokenTypes::BangEqual => self.equality_eval(left, right, &op),
             TokenTypes::Plus | TokenTypes::Minus | TokenTypes::Star | TokenTypes::Slash => {
                 self.arithmetic_eval(left, right, &op)
             }
@@ -537,7 +537,7 @@ mod tests {
                             }
                             return counter;
                           }
-                        
+
                           var c = makeCounter();
                           print c();  // should print 1
                           print c();  // should print 2"
@@ -553,5 +553,128 @@ mod tests {
         for (stmt, exp) in statements.iter().zip(expected.iter()) {
             assert_eq!(inter.execute(&stmt).unwrap(), *exp);
         }
+    }
+
+    // Helper to run a Lox program and return all execute results in order.
+    fn run_program(source: &str) -> Vec<Option<LoxValue>> {
+        let mut scanner = Scanner {
+            source_code: source.into(),
+            line: 1,
+            column: 0,
+        };
+        let tokens = scanner.scan_tokens().unwrap();
+        let mut parser = Parser::new(tokens);
+        let statements = parser.parse_program().unwrap();
+        let mut inter = Interpreter::new();
+        let mut results = Vec::new();
+        for stmt in &statements {
+            results.push(inter.execute(stmt).unwrap());
+        }
+        results
+    }
+
+    // Helper that just verifies a program executes without error.
+    fn assert_program_ok(source: &str) {
+        run_program(source);
+    }
+
+    #[test]
+    fn inter_arithmetic() {
+        assert_program_ok("print 2 + 3 * 4;");
+    }
+
+    #[test]
+    fn inter_string_concat() {
+        assert_program_ok(r#"print "hello" + " world";"#);
+    }
+
+    #[test]
+    fn inter_comparison() {
+        assert_program_ok("print 5 > 3; print 3 > 5;");
+    }
+
+    #[test]
+    fn inter_equality() {
+        assert_program_ok("print nil == nil; print 1 == 2;");
+    }
+
+    #[test]
+    fn inter_unary_minus() {
+        assert_program_ok("print -5;");
+    }
+
+    #[test]
+    fn inter_unary_bang() {
+        assert_program_ok("print !true; print !false;");
+    }
+
+    #[test]
+    fn inter_variable_decl_and_use() {
+        assert_program_ok("var x = 10; print x;");
+    }
+
+    #[test]
+    fn inter_variable_assign() {
+        assert_program_ok("var x = 1; x = 2; print x;");
+    }
+
+    #[test]
+    fn inter_if_true() {
+        assert_program_ok("if (true) print 1;");
+    }
+
+    #[test]
+    fn inter_if_else() {
+        assert_program_ok("if (false) print 1; else print 2;");
+    }
+
+    #[test]
+    fn inter_while_loop() {
+        assert_program_ok("var i = 0; while (i < 3) { print i; i = i + 1; }");
+    }
+
+    #[test]
+    fn inter_for_loop() {
+        assert_program_ok("for (var i = 0; i < 3; i = i + 1) { print i; }");
+    }
+
+    #[test]
+    fn inter_function_call() {
+        assert_program_ok("fun add(a, b) { return a + b; } print add(1, 2);");
+    }
+
+    #[test]
+    fn inter_function_no_return() {
+        assert_program_ok("fun noop() { print 1; } noop();");
+    }
+
+    #[test]
+    fn inter_return_value() {
+        assert_program_ok("fun f() { return 42; } print f();");
+    }
+
+    #[test]
+    fn inter_logical_and() {
+        assert_program_ok("print true and false;");
+    }
+
+    #[test]
+    fn inter_logical_or() {
+        assert_program_ok("print false or true;");
+    }
+
+    #[test]
+    fn inter_block_scope() {
+        assert_program_ok("var x = 1; { var x = 2; print x; } print x;");
+    }
+
+    #[test]
+    fn inter_lambda() {
+        assert_program_ok("var f = fun (x) { return x + 1; }; print f(5);");
+    }
+
+    #[test]
+    fn inter_nested_function() {
+        assert_program_ok("fun outer() { fun inner() { return 1; } return inner(); } print outer();");
     }
 }

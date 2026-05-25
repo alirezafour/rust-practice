@@ -502,4 +502,451 @@ mod tests {
         let expr = parser.assignment().unwrap();
         assert_eq!(expr, expected);
     }
+
+    #[test]
+    fn parse_unary() {
+        let mut scanner = Scanner {
+            source_code: "-5".into(),
+            line: 1,
+            column: 0,
+        };
+        let expected = Expr::Unary {
+            operation: Token {
+                token_type: TokenTypes::Minus,
+                lexeme: "-".into(),
+                line: 1,
+                column: 1,
+            },
+            right: Box::new(Expr::Literal {
+                identifier: "5".into(),
+            }),
+        };
+
+        let tokens = scanner.scan_tokens().unwrap();
+        let mut parser = Parser::new(tokens);
+        let expr = parser.assignment().unwrap();
+        assert_eq!(expr, expected);
+    }
+
+    #[test]
+    fn parse_grouping() {
+        let mut scanner = Scanner {
+            source_code: "(1 + 2)".into(),
+            line: 1,
+            column: 0,
+        };
+        let expected = Expr::Grouping {
+            expression: Box::new(Expr::Binary {
+                left: Box::new(Expr::Literal {
+                    identifier: "1".into(),
+                }),
+                operation: Token {
+                    token_type: TokenTypes::Plus,
+                    lexeme: "+".into(),
+                    line: 1,
+                    column: 4,
+                },
+                right: Box::new(Expr::Literal {
+                    identifier: "2".into(),
+                }),
+            }),
+        };
+
+        let tokens = scanner.scan_tokens().unwrap();
+        let mut parser = Parser::new(tokens);
+        let expr = parser.assignment().unwrap();
+        assert_eq!(expr, expected);
+    }
+
+    #[test]
+    fn parse_logical_and() {
+        let mut scanner = Scanner {
+            source_code: "true and false".into(),
+            line: 1,
+            column: 0,
+        };
+        let expected = Expr::Logical {
+            left: Box::new(Expr::Literal {
+                identifier: "true".into(),
+            }),
+            logical: Token {
+                token_type: TokenTypes::And,
+                lexeme: "and".into(),
+                line: 1,
+                column: 6,
+            },
+            right: Box::new(Expr::Literal {
+                identifier: "false".into(),
+            }),
+        };
+
+        let tokens = scanner.scan_tokens().unwrap();
+        let mut parser = Parser::new(tokens);
+        let expr = parser.assignment().unwrap();
+        assert_eq!(expr, expected);
+    }
+
+    #[test]
+    fn parse_logical_or() {
+        let mut scanner = Scanner {
+            source_code: "true or false".into(),
+            line: 1,
+            column: 0,
+        };
+        let expected = Expr::Logical {
+            left: Box::new(Expr::Literal {
+                identifier: "true".into(),
+            }),
+            logical: Token {
+                token_type: TokenTypes::Or,
+                lexeme: "or".into(),
+                line: 1,
+                column: 6,
+            },
+            right: Box::new(Expr::Literal {
+                identifier: "false".into(),
+            }),
+        };
+
+        let tokens = scanner.scan_tokens().unwrap();
+        let mut parser = Parser::new(tokens);
+        let expr = parser.assignment().unwrap();
+        assert_eq!(expr, expected);
+    }
+
+    #[test]
+    fn parse_precedence() {
+        // 2 + 3 * 4 should parse as 2 + (3 * 4) because * binds tighter
+        let mut scanner = Scanner {
+            source_code: "2 + 3 * 4".into(),
+            line: 1,
+            column: 0,
+        };
+        let expected = Expr::Binary {
+            left: Box::new(Expr::Literal {
+                identifier: "2".into(),
+            }),
+            operation: Token {
+                token_type: TokenTypes::Plus,
+                lexeme: "+".into(),
+                line: 1,
+                column: 3,
+            },
+            right: Box::new(Expr::Binary {
+                left: Box::new(Expr::Literal {
+                    identifier: "3".into(),
+                }),
+                operation: Token {
+                    token_type: TokenTypes::Star,
+                    lexeme: "*".into(),
+                    line: 1,
+                    column: 7,
+                },
+                right: Box::new(Expr::Literal {
+                    identifier: "4".into(),
+                }),
+            }),
+        };
+
+        let tokens = scanner.scan_tokens().unwrap();
+        let mut parser = Parser::new(tokens);
+        let expr = parser.assignment().unwrap();
+        assert_eq!(expr, expected);
+    }
+
+    #[test]
+    fn parse_call() {
+        let mut scanner = Scanner {
+            source_code: "foo(1, 2)".into(),
+            line: 1,
+            column: 0,
+        };
+        let expected = Expr::Call {
+            callee: Box::new(Expr::Literal {
+                identifier: "foo".into(),
+            }),
+            paren: Token {
+                token_type: TokenTypes::LeftParen,
+                lexeme: "(".into(),
+                line: 1,
+                column: 4,
+            },
+            arguments: vec![
+                Expr::Literal {
+                    identifier: "1".into(),
+                },
+                Expr::Literal {
+                    identifier: "2".into(),
+                },
+            ],
+        };
+
+        let tokens = scanner.scan_tokens().unwrap();
+        let mut parser = Parser::new(tokens);
+        let expr = parser.assignment().unwrap();
+        assert_eq!(expr, expected);
+    }
+
+    #[test]
+    fn parse_lambda() {
+        let mut scanner = Scanner {
+            source_code: "fun (x) { return x; }".into(),
+            line: 1,
+            column: 0,
+        };
+        let expected = Expr::Lambda {
+            params: vec!["x".into()],
+            body: Box::new(Stmt::Block {
+                data: vec![Stmt::Return {
+                    value: Some(Expr::Literal {
+                        identifier: "x".into(),
+                    }),
+                }],
+            }),
+        };
+
+        let tokens = scanner.scan_tokens().unwrap();
+        let mut parser = Parser::new(tokens);
+        let expr = parser.assignment().unwrap();
+        assert_eq!(expr, expected);
+    }
+
+    #[test]
+    fn parse_var_statement() {
+        let mut scanner = Scanner {
+            source_code: "var x = 5;".into(),
+            line: 1,
+            column: 0,
+        };
+        let expected = vec![Stmt::Var {
+            name: "x".into(),
+            value: Some(Expr::Literal {
+                identifier: "5".into(),
+            }),
+        }];
+
+        let tokens = scanner.scan_tokens().unwrap();
+        let mut parser = Parser::new(tokens);
+        let stmts = parser.parse_program().unwrap();
+        assert_eq!(stmts, expected);
+    }
+
+    #[test]
+    fn parse_var_nil() {
+        let mut scanner = Scanner {
+            source_code: "var x;".into(),
+            line: 1,
+            column: 0,
+        };
+        let expected = vec![Stmt::Var {
+            name: "x".into(),
+            value: None,
+        }];
+
+        let tokens = scanner.scan_tokens().unwrap();
+        let mut parser = Parser::new(tokens);
+        let stmts = parser.parse_program().unwrap();
+        assert_eq!(stmts, expected);
+    }
+
+    #[test]
+    fn parse_print() {
+        let mut scanner = Scanner {
+            source_code: "print 42;".into(),
+            line: 1,
+            column: 0,
+        };
+        let expected = vec![Stmt::Print {
+            expr: Expr::Literal {
+                identifier: "42".into(),
+            },
+        }];
+
+        let tokens = scanner.scan_tokens().unwrap();
+        let mut parser = Parser::new(tokens);
+        let stmts = parser.parse_program().unwrap();
+        assert_eq!(stmts, expected);
+    }
+
+    #[test]
+    fn parse_if() {
+        let mut scanner = Scanner {
+            source_code: "if (true) print 1;".into(),
+            line: 1,
+            column: 0,
+        };
+        let expected = vec![Stmt::If {
+            condition: Expr::Literal {
+                identifier: "true".into(),
+            },
+            body: Box::new(Stmt::Print {
+                expr: Expr::Literal {
+                    identifier: "1".into(),
+                },
+            }),
+            else_branch: None,
+        }];
+
+        let tokens = scanner.scan_tokens().unwrap();
+        let mut parser = Parser::new(tokens);
+        let stmts = parser.parse_program().unwrap();
+        assert_eq!(stmts, expected);
+    }
+
+    #[test]
+    fn parse_if_else() {
+        let mut scanner = Scanner {
+            source_code: "if (true) print 1; else print 2;".into(),
+            line: 1,
+            column: 0,
+        };
+        let expected = vec![Stmt::If {
+            condition: Expr::Literal {
+                identifier: "true".into(),
+            },
+            body: Box::new(Stmt::Print {
+                expr: Expr::Literal {
+                    identifier: "1".into(),
+                },
+            }),
+            else_branch: Some(Box::new(Stmt::Print {
+                expr: Expr::Literal {
+                    identifier: "2".into(),
+                },
+            })),
+        }];
+
+        let tokens = scanner.scan_tokens().unwrap();
+        let mut parser = Parser::new(tokens);
+        let stmts = parser.parse_program().unwrap();
+        assert_eq!(stmts, expected);
+    }
+
+    #[test]
+    fn parse_while() {
+        let mut scanner = Scanner {
+            source_code: "while (true) print 1;".into(),
+            line: 1,
+            column: 0,
+        };
+        let expected = vec![Stmt::While {
+            condition: Expr::Literal {
+                identifier: "true".into(),
+            },
+            body: Box::new(Stmt::Print {
+                expr: Expr::Literal {
+                    identifier: "1".into(),
+                },
+            }),
+        }];
+
+        let tokens = scanner.scan_tokens().unwrap();
+        let mut parser = Parser::new(tokens);
+        let stmts = parser.parse_program().unwrap();
+        assert_eq!(stmts, expected);
+    }
+
+    #[test]
+    fn parse_block() {
+        let mut scanner = Scanner {
+            source_code: "{ print 1; print 2; }".into(),
+            line: 1,
+            column: 0,
+        };
+        let expected = vec![Stmt::Block {
+            data: vec![
+                Stmt::Print {
+                    expr: Expr::Literal {
+                        identifier: "1".into(),
+                    },
+                },
+                Stmt::Print {
+                    expr: Expr::Literal {
+                        identifier: "2".into(),
+                    },
+                },
+            ],
+        }];
+
+        let tokens = scanner.scan_tokens().unwrap();
+        let mut parser = Parser::new(tokens);
+        let stmts = parser.parse_program().unwrap();
+        assert_eq!(stmts, expected);
+    }
+
+    #[test]
+    fn parse_function() {
+        let mut scanner = Scanner {
+            source_code: "fun add(a, b) { return a; }".into(),
+            line: 1,
+            column: 0,
+        };
+        let expected = vec![Stmt::Function {
+            name: "add".into(),
+            params: vec!["a".into(), "b".into()],
+            body: Box::new(Stmt::Block {
+                data: vec![Stmt::Return {
+                    value: Some(Expr::Literal {
+                        identifier: "a".into(),
+                    }),
+                }],
+            }),
+        }];
+
+        let tokens = scanner.scan_tokens().unwrap();
+        let mut parser = Parser::new(tokens);
+        let stmts = parser.parse_program().unwrap();
+        assert_eq!(stmts, expected);
+    }
+
+    #[test]
+    fn parse_return_value() {
+        let mut scanner = Scanner {
+            source_code: "return 42;".into(),
+            line: 1,
+            column: 0,
+        };
+        let expected = vec![Stmt::Return {
+            value: Some(Expr::Literal {
+                identifier: "42".into(),
+            }),
+        }];
+
+        let tokens = scanner.scan_tokens().unwrap();
+        let mut parser = Parser::new(tokens);
+        let stmts = parser.parse_program().unwrap();
+        assert_eq!(stmts, expected);
+    }
+
+    #[test]
+    fn parse_return_nil() {
+        let mut scanner = Scanner {
+            source_code: "return;".into(),
+            line: 1,
+            column: 0,
+        };
+        let expected = vec![Stmt::Return { value: None }];
+
+        let tokens = scanner.scan_tokens().unwrap();
+        let mut parser = Parser::new(tokens);
+        let stmts = parser.parse_program().unwrap();
+        assert_eq!(stmts, expected);
+    }
+
+    #[test]
+    fn parse_string_literal() {
+        let mut scanner = Scanner {
+            source_code: "\"hello\"".into(),
+            line: 1,
+            column: 0,
+        };
+        let expected = Expr::Literal {
+            identifier: "\"hello\"".into(),
+        };
+
+        let tokens = scanner.scan_tokens().unwrap();
+        let mut parser = Parser::new(tokens);
+        let expr = parser.assignment().unwrap();
+        assert_eq!(expr, expected);
+    }
 }
