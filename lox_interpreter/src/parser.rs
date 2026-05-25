@@ -268,6 +268,17 @@ impl Parser {
     }
     pub fn parse_program(&mut self) -> Result<Vec<Stmt>, ParserError> {
         let mut v = Vec::new();
+        if self.tokens.is_empty() {
+            return Err(ParserError {
+                token: Token {
+                    token_type: TokenTypes::Nil,
+                    lexeme: "nil".into(),
+                    line: 0,
+                    column: 0,
+                },
+                message: "no token exist.".into(),
+            });
+        }
         while !self.check(TokenTypes::Eof) {
             v.push(self.parse_statement()?);
         }
