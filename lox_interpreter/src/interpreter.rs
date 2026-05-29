@@ -798,7 +798,8 @@ mod tests {
     #[test]
     fn inter_nested_function() {
         assert_program_ok(
-            "fun outer() { fun inner() { return 1; } return inner(); } print outer();",
+            "fun outer() { fun inner() { return 1; } return inner(); }
+            print outer();",
         );
     }
 
@@ -809,44 +810,71 @@ mod tests {
 
     #[test]
     fn class_object() {
-        assert_program_ok("class name { fun method() { return 12; } } var b = name();");
+        assert_program_ok(
+            "class name { fun method() { return 12; } }
+            var b = name();",
+        );
     }
 
     #[test]
     fn class_object_function_call() {
-        assert_program_ok("class name { fun method() { return 12; } } var b = name(); b.method();");
+        assert_program_ok(
+            "class name { fun method() { return 12; } }
+            var b = name(); b.method();",
+        );
     }
 
     #[test]
     fn class_object_set_member() {
-        assert_program_ok("class name { fun method() { return 12; } } var b = name(); b.x = 12;");
+        assert_program_ok(
+            "class name { fun method() { return 12; } }
+            var b = name(); b.x = 12;",
+        );
     }
 
     #[test]
     fn class_object_get_member() {
         assert_program_ok(
-            "class name { fun method() { return 12; } } var b = name(); b.x = 12; var abc = b.x;",
+            "class name { fun method() { return 12; } }
+            var b = name(); b.x = 12; var abc = b.x;",
         );
     }
 
     #[test]
     fn class_method_with_params() {
-        assert_program_ok("class Calc { fun add(a, b) { return a + b; } } var c = Calc(); print c.add(5, 3);");
+        assert_program_ok(
+            "class Calc { fun add(a, b) { return a + b; } }
+            var c = Calc(); print c.add(5, 3);",
+        );
     }
 
     #[test]
     fn class_multiple_methods() {
-        assert_program_ok("class Multi { fun one() { return 1; } fun two() { return 2; } } var m = Multi(); print m.one(); print m.two();");
+        assert_program_ok(
+            "class Multi { fun one() { return 1; } fun two() { return 2; } }
+            var m = Multi();
+            print m.one();
+            print m.two();",
+        );
     }
 
     #[test]
     fn class_multiple_instances() {
-        assert_program_ok("class Box { } var a = Box(); var b = Box(); a.x = 1; b.x = 2; print a.x; print b.x;");
+        assert_program_ok(
+            "class Box { }
+            var a = Box();
+            var b = Box();
+            a.x = 1; b.x = 2; 
+            print a.x; print b.x;",
+        );
     }
 
     #[test]
     fn class_empty() {
-        assert_program_ok("class Empty { } var e = Empty();");
+        assert_program_ok(
+            "class Empty { }
+            var e = Empty();",
+        );
     }
 
     // --- Negative (error) tests ---
@@ -938,7 +966,10 @@ mod tests {
 
     #[test]
     fn runtime_error_undefined_property() {
-        assert_runtime_error("class Box { } var b = Box(); print b.nope;", "undefined property");
+        assert_runtime_error(
+            "class Box { } var b = Box(); print b.nope;",
+            "undefined property",
+        );
     }
 
     #[test]
@@ -953,6 +984,9 @@ mod tests {
 
     #[test]
     fn runtime_error_call_field() {
-        assert_runtime_error("class Box { } var b = Box(); b.f = 5; b.f();", "expected function");
+        assert_runtime_error(
+            "class Box { } var b = Box(); b.f = 5; b.f();",
+            "expected function",
+        );
     }
 }
