@@ -121,9 +121,7 @@ impl std::fmt::Display for Expr {
                 right,
             } => write!(f, "({} {} {})", logical, left, right),
             Expr::Call {
-                callee,
-                paren,
-                arguments,
+                callee, arguments, ..
             } => {
                 let params = arguments
                     .iter()

@@ -46,13 +46,13 @@ impl std::fmt::Display for LoxValue {
                 name, parameters, ..
             } => write!(f, "Fun {}({:?})", name, parameters),
             LoxValue::Class { name, .. } => write!(f, "Class {}()", name),
-            LoxValue::Instance { fields, class_name } => write!(f, "Instance {}", class_name),
+            LoxValue::Instance { class_name, .. } => write!(f, "Instance {}", class_name),
         }
     }
 }
 
 #[derive(Debug, PartialEq)]
-struct Environment {
+pub struct Environment {
     map: HashMap<String, LoxValue>,
     parent: Option<Rc<RefCell<Environment>>>,
 }
@@ -448,7 +448,7 @@ impl Interpreter {
             }
             Stmt::Class { name, methods } => {
                 let mut class_methods = HashMap::new();
-                for (method_name, stmt) in methods {
+                for (_, stmt) in methods {
                     if let Stmt::Function { name, params, body } = stmt.as_ref() {
                         class_methods.insert(
                             name.clone(),
@@ -477,15 +477,6 @@ impl Interpreter {
                 };
                 Ok(Some(result))
             }
-            _ => Err(RuntimeError {
-                token: Token {
-                    token_type: TokenTypes::Eof,
-                    lexeme: "Eof".into(),
-                    line: 0,
-                    column: 0,
-                },
-                message: "I didn't like it".into(),
-            }),
         }
     }
 
