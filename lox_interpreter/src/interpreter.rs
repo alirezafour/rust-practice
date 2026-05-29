@@ -19,6 +19,14 @@ pub enum LoxValue {
         body: Box<Stmt>,
         env: Rc<RefCell<Environment>>,
     },
+    Class {
+        name: String,
+        methods: HashMap<String, LoxValue>,
+    },
+    Instance {
+        fields: HashMap<String, LoxValue>,
+        class_name: String,
+    },
 }
 
 impl std::fmt::Display for LoxValue {
@@ -26,33 +34,19 @@ impl std::fmt::Display for LoxValue {
         match self {
             LoxValue::Bool(v) => {
                 if *v {
-                    write!(f, "true")?
+                    write!(f, "true")
                 } else {
-                    write!(f, "false")?
+                    write!(f, "false")
                 }
-                Ok(())
             }
-            LoxValue::Number(n) => {
-                write!(f, "{}", n)?;
-                Ok(())
-            }
-            LoxValue::String(s) => {
-                write!(f, "{}", s)?;
-                Ok(())
-            }
-            LoxValue::Nil => {
-                write!(f, "nil")?;
-                Ok(())
-            }
+            LoxValue::Number(n) => write!(f, "{}", n),
+            LoxValue::String(s) => write!(f, "{}", s),
+            LoxValue::Nil => write!(f, "nil"),
             LoxValue::Function {
-                name,
-                parameters,
-                body,
-                env,
-            } => {
-                write!(f, "Fun {}({:?})", name, parameters)?;
-                Ok(())
-            }
+                name, parameters, ..
+            } => write!(f, "Fun {}({:?})", name, parameters),
+            LoxValue::Class { name, .. } => write!(f, "Class {}()", name),
+            LoxValue::Instance { fields, class_name } => write!(f, "Instance {}", class_name),
         }
     }
 }
@@ -87,6 +81,18 @@ impl Environment {
                     None => false,
                 };
             }
+        }
+    }
+    fn set_field(&mut self, key: &str, field: &str, value: LoxValue) -> bool {
+        match self.map.get_mut(key) {
+            Some(v) => match v {
+                LoxValue::Instance { fields, .. } => {
+                    fields.insert(field.into(), value);
+                    true
+                }
+                _ => false,
+            },
+            None => false,
         }
     }
 }
@@ -246,6 +252,10 @@ impl Interpreter {
                             }
                         };
                     }
+                    LoxValue::Class { name, .. } => Ok(LoxValue::Instance {
+                        fields: HashMap::new(),
+                        class_name: name.clone(),
+                    }),
                     _ => Err(RuntimeError {
                         token: paren.clone(),
                         message: "expected function.".into(),
@@ -258,6 +268,94 @@ impl Interpreter {
                 body: body.clone(),
                 env: Rc::clone(&self.environment),
             }),
+            Expr::Set {
+                object,
+                name,
+                value,
+            } => match object.as_ref() {
+                Expr::Literal { identifier } => {
+                    let value = self.evaluate(value)?;
+                    if self
+                        .environment
+                        .borrow_mut()
+                        .set_field(identifier, name, value)
+                    {
+                        Ok(LoxValue::Nil)
+                    } else {
+                        Err(RuntimeError {
+                            token: Token {
+                                token_type: TokenTypes::Identifier,
+                                lexeme: identifier.into(),
+                                line: 0,
+                                column: 0,
+                            },
+                            message: "only instances have fields.".into(),
+                        })
+                    }
+                }
+                _ => Err(RuntimeError {
+                    token: Token {
+                        token_type: TokenTypes::Identifier,
+                        lexeme: "object".into(),
+                        line: 0,
+                        column: 0,
+                    },
+                    message: "invalid left-hand side of assignment.".into(),
+                }),
+            },
+            Expr::Get { object, name } => {
+                let obj_val = self.evaluate(object)?;
+                match obj_val {
+                    LoxValue::Instance { fields, class_name } => {
+                        if let Some(field) = fields.get(name) {
+                            return Ok(field.clone());
+                        }
+                        match self.environment.borrow().get_cloned(&class_name) {
+                            Some(LoxValue::Class { methods, .. }) => {
+                                if let Some(method) = methods.get(name) {
+                                    return Ok(method.clone());
+                                }
+                                Err(RuntimeError {
+                                    token: Token {
+                                        token_type: TokenTypes::Identifier,
+                                        lexeme: name.clone(),
+                                        line: 0,
+                                        column: 0,
+                                    },
+                                    message: "undefined property.".into(),
+                                })
+                            }
+                            Some(_) => Err(RuntimeError {
+                                token: Token {
+                                    token_type: TokenTypes::Identifier,
+                                    lexeme: class_name.clone(),
+                                    line: 0,
+                                    column: 0,
+                                },
+                                message: "class is not a Class.".into(),
+                            }),
+                            None => Err(RuntimeError {
+                                token: Token {
+                                    token_type: TokenTypes::Identifier,
+                                    lexeme: class_name.clone(),
+                                    line: 0,
+                                    column: 0,
+                                },
+                                message: "class not found.".into(),
+                            }),
+                        }
+                    }
+                    _ => Err(RuntimeError {
+                        token: Token {
+                            token_type: TokenTypes::Identifier,
+                            lexeme: "object".into(),
+                            line: 0,
+                            column: 0,
+                        },
+                        message: "only instances have properties.".into(),
+                    }),
+                }
+            }
         }
     }
 
@@ -344,6 +442,30 @@ impl Interpreter {
                         parameters: params.clone(),
                         body: body.clone(),
                         env: Rc::clone(&self.environment),
+                    },
+                );
+                Ok(None)
+            }
+            Stmt::Class { name, methods } => {
+                let mut class_methods = HashMap::new();
+                for (method_name, stmt) in methods {
+                    if let Stmt::Function { name, params, body } = stmt.as_ref() {
+                        class_methods.insert(
+                            name.clone(),
+                            LoxValue::Function {
+                                name: name.clone(),
+                                parameters: params.clone(),
+                                body: body.clone(),
+                                env: Rc::clone(&self.environment),
+                            },
+                        );
+                    }
+                }
+                self.environment.borrow_mut().map.insert(
+                    name.clone(),
+                    LoxValue::Class {
+                        name: name.clone(),
+                        methods: class_methods,
                     },
                 );
                 Ok(None)
@@ -675,7 +797,56 @@ mod tests {
 
     #[test]
     fn inter_nested_function() {
-        assert_program_ok("fun outer() { fun inner() { return 1; } return inner(); } print outer();");
+        assert_program_ok(
+            "fun outer() { fun inner() { return 1; } return inner(); } print outer();",
+        );
+    }
+
+    #[test]
+    fn class_creation() {
+        assert_program_ok("class name { fun method() { return 12; } }");
+    }
+
+    #[test]
+    fn class_object() {
+        assert_program_ok("class name { fun method() { return 12; } } var b = name();");
+    }
+
+    #[test]
+    fn class_object_function_call() {
+        assert_program_ok("class name { fun method() { return 12; } } var b = name(); b.method();");
+    }
+
+    #[test]
+    fn class_object_set_member() {
+        assert_program_ok("class name { fun method() { return 12; } } var b = name(); b.x = 12;");
+    }
+
+    #[test]
+    fn class_object_get_member() {
+        assert_program_ok(
+            "class name { fun method() { return 12; } } var b = name(); b.x = 12; var abc = b.x;",
+        );
+    }
+
+    #[test]
+    fn class_method_with_params() {
+        assert_program_ok("class Calc { fun add(a, b) { return a + b; } } var c = Calc(); print c.add(5, 3);");
+    }
+
+    #[test]
+    fn class_multiple_methods() {
+        assert_program_ok("class Multi { fun one() { return 1; } fun two() { return 2; } } var m = Multi(); print m.one(); print m.two();");
+    }
+
+    #[test]
+    fn class_multiple_instances() {
+        assert_program_ok("class Box { } var a = Box(); var b = Box(); a.x = 1; b.x = 2; print a.x; print b.x;");
+    }
+
+    #[test]
+    fn class_empty() {
+        assert_program_ok("class Empty { } var e = Empty();");
     }
 
     // --- Negative (error) tests ---
@@ -731,7 +902,10 @@ mod tests {
 
     #[test]
     fn runtime_error_negate_non_number() {
-        assert_runtime_error(r#"print -"hello";"#, "expected right side to be number or bool.");
+        assert_runtime_error(
+            r#"print -"hello";"#,
+            "expected right side to be number or bool.",
+        );
     }
 
     #[test]
@@ -760,5 +934,25 @@ mod tests {
     #[test]
     fn runtime_error_arithmetic_non_number() {
         assert_runtime_error("print true + 1;", "wrong call/type to arithmetic.");
+    }
+
+    #[test]
+    fn runtime_error_undefined_property() {
+        assert_runtime_error("class Box { } var b = Box(); print b.nope;", "undefined property");
+    }
+
+    #[test]
+    fn runtime_error_property_on_non_instance() {
+        assert_runtime_error("var x = 5; print x.y;", "only instances have properties");
+    }
+
+    #[test]
+    fn runtime_error_set_on_non_instance() {
+        assert_runtime_error("var x = 5; x.y = 10;", "only instances have fields");
+    }
+
+    #[test]
+    fn runtime_error_call_field() {
+        assert_runtime_error("class Box { } var b = Box(); b.f = 5; b.f();", "expected function");
     }
 }

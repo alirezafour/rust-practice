@@ -3,7 +3,7 @@ use std::io::Write;
 use crate::{
     interpreter::Interpreter,
     parser::Parser,
-    scanner::{Scanner, Stmt, Token},
+    scanner::{Scanner, Stmt},
 };
 
 mod interpreter;

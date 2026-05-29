@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum TokenTypes {
     LeftParen,
@@ -90,6 +92,15 @@ pub enum Expr {
         params: Vec<String>,
         body: Box<Stmt>,
     },
+    Set {
+        object: Box<Expr>,
+        name: String,
+        value: Box<Expr>,
+    },
+    Get {
+        object: Box<Expr>,
+        name: String,
+    },
 }
 
 impl std::fmt::Display for Expr {
@@ -124,6 +135,12 @@ impl std::fmt::Display for Expr {
             Expr::Lambda { params, body } => {
                 write!(f, "(lambda {} {})", params.join(" "), body.as_ref())
             }
+            Expr::Set {
+                object,
+                name,
+                value,
+            } => write!(f, "(set {} {} {})", object.as_ref(), &name, value.as_ref()),
+            Expr::Get { object, name } => write!(f, "(get {} {})", object.as_ref(), name),
         }
     }
 }
@@ -162,8 +179,7 @@ pub enum Stmt {
     },
     Class {
         name: String,
-        functions: Box<Stmt>,
-        members: Vec<String>,
+        methods: HashMap<String, Box<Stmt>>,
     },
 }
 
@@ -209,17 +225,19 @@ impl std::fmt::Display for Stmt {
                 };
                 write!(f, "(return{})", val)
             }
-            Stmt::Class {
-                name,
-                functions,
-                members,
-            } => write!(
-                f,
-                "(class {} {} {})",
-                name,
-                functions.as_ref(),
-                members.join(" ")
-            ),
+            Stmt::Class { name, methods } => {
+                let mut function_names = String::new();
+                for ett in methods {
+                    match ett.1.as_ref() {
+                        Stmt::Function { name, .. } => {
+                            function_names.push_str(name);
+                            function_names.push(' ');
+                        }
+                        _ => unreachable!("this is never happen."),
+                    }
+                }
+                write!(f, "(class {} {})", name, function_names)
+            }
         }
     }
 }
@@ -866,7 +884,9 @@ mod tests {
 
     #[test]
     fn scans_all_keywords() {
-        let source = "and class else false fun for if nil or print return super this true var while".to_string();
+        let source =
+            "and class else false fun for if nil or print return super this true var while"
+                .to_string();
         let expected_tokens = vec![
             TokenTypes::And,
             TokenTypes::Class,
@@ -1011,6 +1031,31 @@ mod tests {
         }
     }
 
+    #[test]
+    fn scans_set_get() {
+        let source = "x.y = 12".to_string();
+        let expected_types = vec![
+            TokenTypes::Identifier,
+            TokenTypes::Dot,
+            TokenTypes::Identifier,
+            TokenTypes::Equal,
+            TokenTypes::Number,
+            TokenTypes::Eof,
+        ];
+        let expected_lexemes = vec!["x", ".", "y", "=", "12", ""];
+        let mut scanner = Scanner {
+            source_code: source,
+            line: 1,
+            column: 0,
+        };
+        let tokens = scanner.scan_tokens().unwrap();
+        assert_eq!(tokens.len(), expected_types.len());
+        for idx in 0..expected_types.len() {
+            assert_eq!(tokens[idx].token_type, expected_types[idx]);
+            assert_eq!(tokens[idx].lexeme, expected_lexemes[idx]);
+        }
+    }
+
     // --- Negative (error) tests ---
 
     fn assert_scan_error(source: &str, expected_substring: &str) {
@@ -1020,7 +1065,11 @@ mod tests {
             column: 0,
         };
         let result = scanner.scan_tokens();
-        assert!(result.is_err(), "expected error but got tokens: {:?}", result);
+        assert!(
+            result.is_err(),
+            "expected error but got tokens: {:?}",
+            result
+        );
         let err = result.unwrap_err();
         assert!(
             err.message.contains(expected_substring),

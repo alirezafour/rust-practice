@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use crate::scanner::{Expr, Stmt, Token, TokenTypes};
 
 #[derive(Debug)]
@@ -62,6 +64,15 @@ impl Parser {
                     return Ok(Expr::Assign {
                         identifier,
                         right: Box::new(right),
+                    });
+                }
+                Expr::Get { object, name } => {
+                    let _ = self.advance();
+                    let right = self.assignment()?;
+                    return Ok(Expr::Set {
+                        object,
+                        name,
+                        value: Box::new(right),
                     });
                 }
                 _ => {
@@ -198,6 +209,16 @@ impl Parser {
     fn primary(&mut self) -> Result<Expr, ParserError> {
         if self.check(TokenTypes::Number) || self.check(TokenTypes::Identifier) {
             let literal = self.advance();
+            if self.check(TokenTypes::Dot) {
+                let _ = self.advance();
+                let member = self.expect(TokenTypes::Identifier)?;
+                return Ok(Expr::Get {
+                    object: Box::new(Expr::Literal {
+                        identifier: literal.lexeme,
+                    }),
+                    name: member.lexeme,
+                });
+            }
             return Ok(Expr::Literal {
                 identifier: literal.lexeme,
             });
@@ -301,6 +322,8 @@ impl Parser {
             return self.parse_return();
         } else if self.check_and_advance(TokenTypes::Fun) {
             return self.parse_function();
+        } else if self.check_and_advance(TokenTypes::Class) {
+            return self.parse_class();
         }
         return self.parse_expr();
     }
@@ -422,6 +445,28 @@ impl Parser {
             params: params,
             body: Box::new(body),
         })
+    }
+
+    fn parse_class(&mut self) -> Result<Stmt, ParserError> {
+        let name = self.expect(TokenTypes::Identifier)?.lexeme;
+        self.expect(TokenTypes::LeftBrace)?;
+        let mut methods = HashMap::new();
+        while !self.check(TokenTypes::RightBrace) && !self.check(TokenTypes::Eof) {
+            let stmt = self.parse_statement()?;
+            match &stmt {
+                Stmt::Function { name, .. } => {
+                    methods.insert(name.clone(), Box::new(stmt));
+                }
+                _ => {
+                    return Err(ParserError {
+                        token: self.advance(),
+                        message: "invalid token in class, expected member/functions.".into(),
+                    });
+                }
+            };
+        }
+        self.expect(TokenTypes::RightBrace)?;
+        Ok(Stmt::Class { name, methods })
     }
 }
 
@@ -950,27 +995,89 @@ mod tests {
         assert_eq!(expr, expected);
     }
 
+    #[test]
+    fn parse_class_set() {
+        let mut scanner = Scanner {
+            source_code: "x.y = 12".into(),
+            line: 1,
+            column: 0,
+        };
+        let expected = Expr::Set {
+            object: Box::new(Expr::Literal {
+                identifier: "x".into(),
+            }),
+            name: "y".into(),
+            value: Box::new(Expr::Literal {
+                identifier: "12".into(),
+            }),
+        };
+
+        let tokens = scanner.scan_tokens().unwrap();
+        let mut parser = Parser::new(tokens);
+        let expr = parser.assignment().unwrap();
+        assert_eq!(expr, expected);
+    }
+
+    #[test]
+    fn parse_class_get() {
+        let mut scanner = Scanner {
+            source_code: "x.y".into(),
+            line: 1,
+            column: 0,
+        };
+        let expected = Expr::Get {
+            object: Box::new(Expr::Literal {
+                identifier: "x".into(),
+            }),
+            name: "y".into(),
+        };
+
+        let tokens = scanner.scan_tokens().unwrap();
+        let mut parser = Parser::new(tokens);
+        let expr = parser.assignment().unwrap();
+        assert_eq!(expr, expected);
+    }
+
     // --- Negative (error) tests ---
 
     fn parse_expr_from(source: &str) -> Result<Expr, ParserError> {
-        let mut scanner = Scanner { source_code: source.into(), line: 1, column: 0 };
+        let mut scanner = Scanner {
+            source_code: source.into(),
+            line: 1,
+            column: 0,
+        };
         let tokens = scanner.scan_tokens().unwrap();
         let mut parser = Parser::new(tokens);
         parser.assignment()
     }
 
     fn parse_program_from(source: &str) -> Result<Vec<Stmt>, ParserError> {
-        let mut scanner = Scanner { source_code: source.into(), line: 1, column: 0 };
+        let mut scanner = Scanner {
+            source_code: source.into(),
+            line: 1,
+            column: 0,
+        };
         let tokens = scanner.scan_tokens().unwrap();
         let mut parser = Parser::new(tokens);
         parser.parse_program()
     }
 
-    fn assert_parse_error<T: std::fmt::Debug>(result: Result<T, ParserError>, expected_substring: &str) {
-        assert!(result.is_err(), "expected parse error but got: {:?}", result);
+    fn assert_parse_error<T: std::fmt::Debug>(
+        result: Result<T, ParserError>,
+        expected_substring: &str,
+    ) {
+        assert!(
+            result.is_err(),
+            "expected parse error but got: {:?}",
+            result
+        );
         let err = result.unwrap_err();
-        assert!(err.message.contains(expected_substring),
-            "error message '{}' did not contain '{}'", err.message, expected_substring);
+        assert!(
+            err.message.contains(expected_substring),
+            "error message '{}' did not contain '{}'",
+            err.message,
+            expected_substring
+        );
     }
 
     #[test]
