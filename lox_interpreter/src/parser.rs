@@ -42,7 +42,7 @@ impl Parser {
         }
     }
     fn expect(&mut self, token_type: TokenTypes) -> Result<Token, ParserError> {
-        let error_msg = format!("expected {:?}.", &token_type).to_string();
+        let error_msg = format!("expected {:?}.", &token_type);
         if self.check(token_type) {
             Ok(self.advance())
         } else {
@@ -62,7 +62,7 @@ impl Parser {
                     let _ = self.advance();
                     let right = self.assignment()?;
                     return Ok(Expr::Assign {
-                        identifier,
+                        identifier: identifier,
                         right: Box::new(right),
                     });
                 }
@@ -214,13 +214,13 @@ impl Parser {
                 let member = self.expect(TokenTypes::Identifier)?;
                 return Ok(Expr::Get {
                     object: Box::new(Expr::Literal {
-                        identifier: literal.lexeme,
+                        identifier: literal,
                     }),
                     name: member.lexeme,
                 });
             }
             return Ok(Expr::Literal {
-                identifier: literal.lexeme,
+                identifier: literal,
             });
         } else if self.check(TokenTypes::LeftParen) {
             let open_group = self.advance();
@@ -233,22 +233,32 @@ impl Parser {
             } else {
                 return Err(ParserError {
                     token: self.peek().cloned().unwrap(),
-                    message: format!("expected closing for {}", open_group.lexeme).to_string(),
+                    message: format!("expected closing for {}", open_group.lexeme),
                 });
             }
         } else if self.check(TokenTypes::True)
             || self.check(TokenTypes::False)
             || self.check(TokenTypes::Nil)
+            || self.check(TokenTypes::This)
         {
             let key_word = self.advance();
+            // Handle this.property like object.property
+            if self.check(TokenTypes::Dot) && key_word.token_type == TokenTypes::This {
+                let _ = self.advance();
+                let member = self.expect(TokenTypes::Identifier)?;
+                return Ok(Expr::Get {
+                    object: Box::new(Expr::Literal {
+                        identifier: key_word,
+                    }),
+                    name: member.lexeme,
+                });
+            }
             return Ok(Expr::Literal {
-                identifier: key_word.lexeme,
+                identifier: key_word,
             });
         } else if self.check(TokenTypes::String) {
             let string = self.advance();
-            return Ok(Expr::Literal {
-                identifier: string.lexeme,
-            });
+            return Ok(Expr::Literal { identifier: string });
         } else if self.check(TokenTypes::Fun) {
             return self.parse_function_expr();
         }
@@ -271,9 +281,7 @@ impl Parser {
                 body: Box::new(self.parse_block()?),
             });
         }
-        Ok(Expr::Literal {
-            identifier: left.lexeme,
-        })
+        Ok(Expr::Literal { identifier: left })
     }
 
     fn check_semicolon(&mut self, statement: Stmt) -> Result<Stmt, ParserError> {
@@ -404,7 +412,7 @@ impl Parser {
             let found = self.peek().cloned().unwrap();
             return Err(ParserError {
                 token: found,
-                message: "expected '('.".to_string(),
+                message: "expected open brace.".to_string(),
             });
         }
         let mut data = vec![];
@@ -459,7 +467,7 @@ impl Parser {
                 }
                 _ => {
                     return Err(ParserError {
-                        token: self.advance(),
+                        token: self.peek().cloned().unwrap(),
                         message: "invalid token in class, expected member/functions.".into(),
                     });
                 }
@@ -475,6 +483,53 @@ mod tests {
     use super::*;
     use crate::scanner::Scanner;
 
+    // Helper to create a Token for testing
+    fn mk_token(token_type: TokenTypes, lexeme: &str, line: usize, column: usize) -> Token {
+        Token {
+            token_type,
+            lexeme: lexeme.into(),
+            line,
+            column,
+        }
+    }
+
+    // Helpers for common tokens (assuming line 1, column 0 for simplicity)
+    fn lit_id(lexeme: &str, column: usize) -> Expr {
+        Expr::Literal {
+            identifier: mk_token(TokenTypes::Identifier, lexeme, 1, column),
+        }
+    }
+
+    fn lit_num(lexeme: &str, column: usize) -> Expr {
+        Expr::Literal {
+            identifier: mk_token(TokenTypes::Number, lexeme, 1, column),
+        }
+    }
+
+    fn lit_str(lexeme: &str, column: usize) -> Expr {
+        Expr::Literal {
+            identifier: mk_token(TokenTypes::String, lexeme, 1, column),
+        }
+    }
+
+    fn lit_true(column: usize) -> Expr {
+        Expr::Literal {
+            identifier: mk_token(TokenTypes::True, "true", 1, column),
+        }
+    }
+
+    fn lit_false(column: usize) -> Expr {
+        Expr::Literal {
+            identifier: mk_token(TokenTypes::False, "false", 1, column),
+        }
+    }
+
+    // fn lit_nil(column: usize) -> Expr {
+    //     Expr::Literal {
+    //         identifier: mk_token(TokenTypes::Nil, "nil", 1, column),
+    //     }
+    // }
+
     #[test]
     fn exprs_assign() {
         let mut scanner = Scanner {
@@ -483,10 +538,8 @@ mod tests {
             column: 0,
         };
         let expected = Expr::Assign {
-            identifier: "x".into(),
-            right: Box::new(Expr::Literal {
-                identifier: "2".into(),
-            }),
+            identifier: mk_token(TokenTypes::Identifier, "x", 1, 1),
+            right: Box::new(lit_num("2", 3)),
         };
 
         let tokens = scanner.scan_tokens().unwrap();
@@ -503,18 +556,14 @@ mod tests {
             column: 0,
         };
         let expected = Expr::Binary {
-            left: Box::new(Expr::Literal {
-                identifier: "x".into(),
-            }),
+            left: Box::new(lit_id("x", 1)),
             operation: Token {
                 token_type: TokenTypes::EqualEqual,
                 lexeme: "==".into(),
                 line: 1,
                 column: 2,
             },
-            right: Box::new(Expr::Literal {
-                identifier: "2".into(),
-            }),
+            right: Box::new(lit_num("2", 4)),
         };
 
         let tokens = scanner.scan_tokens().unwrap();
@@ -528,18 +577,14 @@ mod tests {
             column: 0,
         };
         let expected = Expr::Binary {
-            left: Box::new(Expr::Literal {
-                identifier: "3".into(),
-            }),
+            left: Box::new(lit_num("3", 1)),
             operation: Token {
                 token_type: TokenTypes::Greater,
                 lexeme: ">".into(),
                 line: 1,
                 column: 2,
             },
-            right: Box::new(Expr::Literal {
-                identifier: "2".into(),
-            }),
+            right: Box::new(lit_num("2", 3)),
         };
 
         let tokens = scanner.scan_tokens().unwrap();
@@ -562,9 +607,7 @@ mod tests {
                 line: 1,
                 column: 1,
             },
-            right: Box::new(Expr::Literal {
-                identifier: "5".into(),
-            }),
+            right: Box::new(lit_num("5", 2)),
         };
 
         let tokens = scanner.scan_tokens().unwrap();
@@ -582,18 +625,14 @@ mod tests {
         };
         let expected = Expr::Grouping {
             expression: Box::new(Expr::Binary {
-                left: Box::new(Expr::Literal {
-                    identifier: "1".into(),
-                }),
+                left: Box::new(lit_num("1", 2)),
                 operation: Token {
                     token_type: TokenTypes::Plus,
                     lexeme: "+".into(),
                     line: 1,
                     column: 4,
                 },
-                right: Box::new(Expr::Literal {
-                    identifier: "2".into(),
-                }),
+                right: Box::new(lit_num("2", 6)),
             }),
         };
 
@@ -611,18 +650,14 @@ mod tests {
             column: 0,
         };
         let expected = Expr::Logical {
-            left: Box::new(Expr::Literal {
-                identifier: "true".into(),
-            }),
+            left: Box::new(lit_true(1)),
             logical: Token {
                 token_type: TokenTypes::And,
                 lexeme: "and".into(),
                 line: 1,
                 column: 6,
             },
-            right: Box::new(Expr::Literal {
-                identifier: "false".into(),
-            }),
+            right: Box::new(lit_false(10)),
         };
 
         let tokens = scanner.scan_tokens().unwrap();
@@ -639,18 +674,14 @@ mod tests {
             column: 0,
         };
         let expected = Expr::Logical {
-            left: Box::new(Expr::Literal {
-                identifier: "true".into(),
-            }),
+            left: Box::new(lit_true(1)),
             logical: Token {
                 token_type: TokenTypes::Or,
                 lexeme: "or".into(),
                 line: 1,
                 column: 6,
             },
-            right: Box::new(Expr::Literal {
-                identifier: "false".into(),
-            }),
+            right: Box::new(lit_false(9)),
         };
 
         let tokens = scanner.scan_tokens().unwrap();
@@ -668,9 +699,7 @@ mod tests {
             column: 0,
         };
         let expected = Expr::Binary {
-            left: Box::new(Expr::Literal {
-                identifier: "2".into(),
-            }),
+            left: Box::new(lit_num("2", 1)),
             operation: Token {
                 token_type: TokenTypes::Plus,
                 lexeme: "+".into(),
@@ -678,18 +707,14 @@ mod tests {
                 column: 3,
             },
             right: Box::new(Expr::Binary {
-                left: Box::new(Expr::Literal {
-                    identifier: "3".into(),
-                }),
+                left: Box::new(lit_num("3", 5)),
                 operation: Token {
                     token_type: TokenTypes::Star,
                     lexeme: "*".into(),
                     line: 1,
                     column: 7,
                 },
-                right: Box::new(Expr::Literal {
-                    identifier: "4".into(),
-                }),
+                right: Box::new(lit_num("4", 9)),
             }),
         };
 
@@ -707,23 +732,14 @@ mod tests {
             column: 0,
         };
         let expected = Expr::Call {
-            callee: Box::new(Expr::Literal {
-                identifier: "foo".into(),
-            }),
+            callee: Box::new(lit_id("foo", 1)),
             paren: Token {
                 token_type: TokenTypes::LeftParen,
                 lexeme: "(".into(),
                 line: 1,
                 column: 4,
             },
-            arguments: vec![
-                Expr::Literal {
-                    identifier: "1".into(),
-                },
-                Expr::Literal {
-                    identifier: "2".into(),
-                },
-            ],
+            arguments: vec![lit_num("1", 5), lit_num("2", 8)],
         };
 
         let tokens = scanner.scan_tokens().unwrap();
@@ -743,9 +759,7 @@ mod tests {
             params: vec!["x".into()],
             body: Box::new(Stmt::Block {
                 data: vec![Stmt::Return {
-                    value: Some(Expr::Literal {
-                        identifier: "x".into(),
-                    }),
+                    value: Some(lit_id("x", 18)),
                 }],
             }),
         };
@@ -765,9 +779,7 @@ mod tests {
         };
         let expected = vec![Stmt::Var {
             name: "x".into(),
-            value: Some(Expr::Literal {
-                identifier: "5".into(),
-            }),
+            value: Some(lit_num("5", 9)),
         }];
 
         let tokens = scanner.scan_tokens().unwrap();
@@ -802,9 +814,7 @@ mod tests {
             column: 0,
         };
         let expected = vec![Stmt::Print {
-            expr: Expr::Literal {
-                identifier: "42".into(),
-            },
+            expr: lit_num("42", 7),
         }];
 
         let tokens = scanner.scan_tokens().unwrap();
@@ -821,13 +831,9 @@ mod tests {
             column: 0,
         };
         let expected = vec![Stmt::If {
-            condition: Expr::Literal {
-                identifier: "true".into(),
-            },
+            condition: lit_true(5),
             body: Box::new(Stmt::Print {
-                expr: Expr::Literal {
-                    identifier: "1".into(),
-                },
+                expr: lit_num("1", 17),
             }),
             else_branch: None,
         }];
@@ -846,18 +852,12 @@ mod tests {
             column: 0,
         };
         let expected = vec![Stmt::If {
-            condition: Expr::Literal {
-                identifier: "true".into(),
-            },
+            condition: lit_true(5),
             body: Box::new(Stmt::Print {
-                expr: Expr::Literal {
-                    identifier: "1".into(),
-                },
+                expr: lit_num("1", 17),
             }),
             else_branch: Some(Box::new(Stmt::Print {
-                expr: Expr::Literal {
-                    identifier: "2".into(),
-                },
+                expr: lit_num("2", 31),
             })),
         }];
 
@@ -875,13 +875,9 @@ mod tests {
             column: 0,
         };
         let expected = vec![Stmt::While {
-            condition: Expr::Literal {
-                identifier: "true".into(),
-            },
+            condition: lit_true(8),
             body: Box::new(Stmt::Print {
-                expr: Expr::Literal {
-                    identifier: "1".into(),
-                },
+                expr: lit_num("1", 20),
             }),
         }];
 
@@ -901,14 +897,10 @@ mod tests {
         let expected = vec![Stmt::Block {
             data: vec![
                 Stmt::Print {
-                    expr: Expr::Literal {
-                        identifier: "1".into(),
-                    },
+                    expr: lit_num("1", 9),
                 },
                 Stmt::Print {
-                    expr: Expr::Literal {
-                        identifier: "2".into(),
-                    },
+                    expr: lit_num("2", 18),
                 },
             ],
         }];
@@ -931,9 +923,7 @@ mod tests {
             params: vec!["a".into(), "b".into()],
             body: Box::new(Stmt::Block {
                 data: vec![Stmt::Return {
-                    value: Some(Expr::Literal {
-                        identifier: "a".into(),
-                    }),
+                    value: Some(lit_id("a", 24)),
                 }],
             }),
         }];
@@ -952,9 +942,7 @@ mod tests {
             column: 0,
         };
         let expected = vec![Stmt::Return {
-            value: Some(Expr::Literal {
-                identifier: "42".into(),
-            }),
+            value: Some(lit_num("42", 8)),
         }];
 
         let tokens = scanner.scan_tokens().unwrap();
@@ -985,9 +973,7 @@ mod tests {
             line: 1,
             column: 0,
         };
-        let expected = Expr::Literal {
-            identifier: "\"hello\"".into(),
-        };
+        let expected = lit_str("\"hello\"", 1);
 
         let tokens = scanner.scan_tokens().unwrap();
         let mut parser = Parser::new(tokens);
@@ -1003,13 +989,9 @@ mod tests {
             column: 0,
         };
         let expected = Expr::Set {
-            object: Box::new(Expr::Literal {
-                identifier: "x".into(),
-            }),
+            object: Box::new(lit_id("x", 1)),
             name: "y".into(),
-            value: Box::new(Expr::Literal {
-                identifier: "12".into(),
-            }),
+            value: Box::new(lit_num("12", 7)),
         };
 
         let tokens = scanner.scan_tokens().unwrap();
@@ -1026,9 +1008,7 @@ mod tests {
             column: 0,
         };
         let expected = Expr::Get {
-            object: Box::new(Expr::Literal {
-                identifier: "x".into(),
-            }),
+            object: Box::new(lit_id("x", 1)),
             name: "y".into(),
         };
 

@@ -32,13 +32,7 @@ pub enum LoxValue {
 impl std::fmt::Display for LoxValue {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
-            LoxValue::Bool(v) => {
-                if *v {
-                    write!(f, "true")
-                } else {
-                    write!(f, "false")
-                }
-            }
+            LoxValue::Bool(v) => write!(f, "{}", v),
             LoxValue::Number(n) => write!(f, "{}", n),
             LoxValue::String(s) => write!(f, "{}", s),
             LoxValue::Nil => write!(f, "nil"),
@@ -61,12 +55,10 @@ impl Environment {
     fn get_cloned(&self, key: &str) -> Option<LoxValue> {
         match self.map.get(key) {
             Some(value) => Some(value.clone()),
-            None => {
-                return match &self.parent {
-                    Some(parent) => parent.borrow().get_cloned(key),
-                    None => None,
-                };
-            }
+            None => match &self.parent {
+                Some(parent) => parent.borrow().get_cloned(key),
+                None => None,
+            },
         }
     }
     fn set(&mut self, key: &str, value: LoxValue) -> bool {
@@ -75,12 +67,10 @@ impl Environment {
                 *v = value;
                 true
             }
-            None => {
-                return match &self.parent {
-                    Some(parent) => parent.borrow_mut().set(key, value),
-                    None => false,
-                };
-            }
+            None => match &self.parent {
+                Some(parent) => parent.borrow_mut().set(key, value),
+                None => false,
+            },
         }
     }
     fn set_field(&mut self, key: &str, field: &str, value: LoxValue) -> bool {
@@ -112,34 +102,42 @@ impl Interpreter {
     }
     fn evaluate(&mut self, expr: &Expr) -> Result<LoxValue, RuntimeError> {
         match expr {
-            Expr::Literal { identifier } => match identifier.as_str() {
-                "true" => return Ok(LoxValue::Bool(true)),
-                "false" => return Ok(LoxValue::Bool(false)),
-                "nil" => return Ok(LoxValue::Nil),
-                _ => {
-                    // check for string
-                    if identifier.starts_with("\"") {
-                        return Ok(LoxValue::String(
-                            identifier[1..identifier.len() - 1].to_string(),
-                        ));
-                    // check for number
-                    } else if let Ok(num) = identifier.parse::<f64>() {
-                        return Ok(LoxValue::Number(num));
-                    // check identifier
-                    } else if let Some(val) = self.environment.borrow().get_cloned(identifier) {
-                        return Ok(val.clone());
-                    } else {
-                        return Err(RuntimeError {
-                            token: Token {
-                                token_type: TokenTypes::Identifier,
-                                lexeme: identifier.into(),
-                                line: 0,
-                                column: 0,
-                            },
+            // TODO: refactor using token type from Token
+            Expr::Literal { identifier } => match &identifier.token_type {
+                TokenTypes::True => Ok(LoxValue::Bool(true)),
+                TokenTypes::False => Ok(LoxValue::Bool(false)),
+                TokenTypes::Nil => Ok(LoxValue::Nil),
+                TokenTypes::String => Ok(LoxValue::String(identifier.lexeme.clone())),
+                TokenTypes::Number => match identifier.lexeme.parse::<f64>() {
+                    Ok(v) => Ok(LoxValue::Number(v)),
+                    Err(e) => Err(RuntimeError {
+                        token: identifier.clone(),
+                        message: format!("invalid number. error: {e}"),
+                    }),
+                }, // remove unwrap use match
+                TokenTypes::Identifier => {
+                    match self.environment.borrow().get_cloned(&identifier.lexeme) {
+                        Some(v) => Ok(v),
+                        None => Err(RuntimeError {
+                            token: identifier.clone(),
                             message: format!("identifier `{identifier}` not found"),
-                        });
+                        }),
                     }
                 }
+                TokenTypes::This => {
+                    // Look up "this" in the environment (bound by method calls)
+                    match self.environment.borrow().get_cloned("this") {
+                        Some(v) => Ok(v),
+                        None => Err(RuntimeError {
+                            token: identifier.clone(),
+                            message: "this can only be used inside methods.".into(),
+                        }),
+                    }
+                }
+                _ => Err(RuntimeError {
+                    token: identifier.clone(),
+                    message: "invalid literals".into(),
+                }),
             },
             Expr::Binary {
                 left,
@@ -148,46 +146,33 @@ impl Interpreter {
             } => {
                 let left_val = self.evaluate(left)?;
                 let right_val = self.evaluate(right)?;
-                return self.binary_eval(&left_val, &right_val, &operation);
+                self.binary_eval(&left_val, &right_val, &operation)
             }
             Expr::Unary { operation, right } => {
                 let right_val = self.evaluate(right)?;
                 match (&right_val, &operation.token_type) {
-                    (LoxValue::Number(val), TokenTypes::Minus) => {
-                        return Ok(LoxValue::Number(-val));
-                    }
-                    (_, TokenTypes::Bang) => {
-                        return Ok(LoxValue::Bool(!self.is_truthy(&right_val)));
-                    }
-                    _ => {
-                        return Err(RuntimeError {
-                            token: operation.clone(),
-                            message: "expected right side to be number or bool.".into(),
-                        });
-                    }
+                    (LoxValue::Number(val), TokenTypes::Minus) => Ok(LoxValue::Number(-val)),
+                    (_, TokenTypes::Bang) => Ok(LoxValue::Bool(!self.is_truthy(&right_val))),
+                    _ => Err(RuntimeError {
+                        token: operation.clone(),
+                        message: "expected right side to be number or bool.".into(),
+                    }),
                 }
             }
-            Expr::Grouping { expression } => {
-                return self.evaluate(expression);
-            }
+            Expr::Grouping { expression } => self.evaluate(expression),
             Expr::Assign { identifier, right } => {
                 let right_val = self.evaluate(right)?;
                 if !self
                     .environment
                     .borrow_mut()
-                    .set(identifier, right_val.clone())
+                    .set(&identifier.lexeme, right_val.clone())
                 {
                     return Err(RuntimeError {
-                        token: Token {
-                            token_type: TokenTypes::Identifier,
-                            lexeme: format!("{identifier}"),
-                            line: 0,
-                            column: 0,
-                        },
+                        token: identifier.clone(),
                         message: format!("identifier {identifier} not defined."),
                     });
                 }
-                return Ok(right_val);
+                Ok(right_val)
             }
             Expr::Logical {
                 left,
@@ -198,15 +183,11 @@ impl Interpreter {
                 let bool_left = self.is_truthy(&left_val);
                 match (bool_left, &logical.token_type) {
                     (true, TokenTypes::Or) | (false, TokenTypes::And) => return Ok(left_val),
-                    (true, TokenTypes::And) | (false, TokenTypes::Or) => {
-                        return self.evaluate(right);
-                    }
-                    _ => {
-                        return Err(RuntimeError {
-                            token: logical.clone(),
-                            message: "invalid logical operation.".into(),
-                        });
-                    }
+                    (true, TokenTypes::And) | (false, TokenTypes::Or) => self.evaluate(right),
+                    _ => Err(RuntimeError {
+                        token: logical.clone(),
+                        message: "invalid logical operation.".into(),
+                    }),
                 }
             }
             Expr::Call {
@@ -214,6 +195,74 @@ impl Interpreter {
                 paren,
                 arguments,
             } => {
+                // Special handling for method calls like obj.method()
+                // Check if callee is a Get expression on an instance
+                if let Expr::Get { object, name } = callee.as_ref() {
+                    if let Expr::Literal {
+                        identifier: obj_token,
+                    } = object.as_ref()
+                    {
+                        if obj_token.token_type == TokenTypes::Identifier {
+                            // Evaluate the object to get the instance
+                            if let Ok(obj_val) = self.evaluate(object) {
+                                if let LoxValue::Instance { ref class_name, .. } = obj_val {
+                                    // Look up the class (clone to avoid borrow issues)
+                                    let class_opt =
+                                        self.environment.borrow().get_cloned(&class_name);
+                                    if let Some(LoxValue::Class { methods, .. }) = class_opt {
+                                        if let Some(LoxValue::Function {
+                                            name: _,
+                                            parameters,
+                                            body,
+                                            env: _,
+                                        }) = methods.get(name).cloned()
+                                        {
+                                            if arguments.len() != parameters.len() {
+                                                return Err(RuntimeError {
+                                                    token: paren.clone(),
+                                                    message: format!(
+                                                        "method {name} expected {} params.",
+                                                        parameters.len()
+                                                    ),
+                                                });
+                                            }
+                                            let old_env = Rc::clone(&self.environment);
+                                            let fun_env = Rc::new(RefCell::new(Environment {
+                                                map: HashMap::new(),
+                                                parent: Some(Rc::clone(&self.environment)),
+                                            }));
+                                            // Bind 'this' to the actual instance
+                                            fun_env.borrow_mut().map.insert("this".into(), obj_val);
+                                            // Bind parameters
+                                            for (pram_name, arg_expr) in
+                                                parameters.iter().zip(arguments.iter())
+                                            {
+                                                let value = self.evaluate(arg_expr)?;
+                                                fun_env
+                                                    .borrow_mut()
+                                                    .map
+                                                    .insert(pram_name.clone(), value);
+                                            }
+                                            self.environment = fun_env;
+                                            return match self.execute(&body) {
+                                                Ok(result) => {
+                                                    self.environment = old_env;
+                                                    Ok(result.unwrap_or(LoxValue::Nil))
+                                                }
+                                                Err(err) => {
+                                                    self.environment = old_env;
+                                                    Err(err)
+                                                }
+                                            };
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Regular function call
                 let identifier = self.evaluate(callee)?;
                 match &identifier {
                     LoxValue::Function {
@@ -241,7 +290,7 @@ impl Interpreter {
                             fun_env.borrow_mut().map.insert(pram_name.clone(), value);
                         }
                         self.environment = fun_env;
-                        return match self.execute(&body) {
+                        match self.execute(&body) {
                             Ok(result) => {
                                 self.environment = old_env;
                                 Ok(result.unwrap_or(LoxValue::Nil))
@@ -250,7 +299,7 @@ impl Interpreter {
                                 self.environment = old_env;
                                 Err(err)
                             }
-                        };
+                        }
                     }
                     LoxValue::Class { name, .. } => Ok(LoxValue::Instance {
                         fields: HashMap::new(),
@@ -278,17 +327,12 @@ impl Interpreter {
                     if self
                         .environment
                         .borrow_mut()
-                        .set_field(identifier, name, value)
+                        .set_field(&identifier.lexeme, name, value)
                     {
                         Ok(LoxValue::Nil)
                     } else {
                         Err(RuntimeError {
-                            token: Token {
-                                token_type: TokenTypes::Identifier,
-                                lexeme: identifier.into(),
-                                line: 0,
-                                column: 0,
-                            },
+                            token: identifier.clone(),
                             message: "only instances have fields.".into(),
                         })
                     }
@@ -311,11 +355,9 @@ impl Interpreter {
                             return Ok(field.clone());
                         }
                         match self.environment.borrow().get_cloned(&class_name) {
-                            Some(LoxValue::Class { methods, .. }) => {
-                                if let Some(method) = methods.get(name) {
-                                    return Ok(method.clone());
-                                }
-                                Err(RuntimeError {
+                            Some(LoxValue::Class { methods, .. }) => match methods.get(name) {
+                                Some(method) => Ok(method.clone()),
+                                None => Err(RuntimeError {
                                     token: Token {
                                         token_type: TokenTypes::Identifier,
                                         lexeme: name.clone(),
@@ -323,8 +365,8 @@ impl Interpreter {
                                         column: 0,
                                     },
                                     message: "undefined property.".into(),
-                                })
-                            }
+                                }),
+                            },
                             Some(_) => Err(RuntimeError {
                                 token: Token {
                                     token_type: TokenTypes::Identifier,
@@ -865,6 +907,23 @@ mod tests {
         assert_program_ok(
             "class Empty { }
             var e = Empty();",
+        );
+    }
+
+    #[test]
+    fn class_with_this() {
+        assert_program_ok(
+            " class Box {
+                fun set(value) {
+                    this.value = value;     // set a field on the instance
+                }
+                fun get() {
+                    return this.value;       // read a field from the instance
+                }
+            }
+            var b = Box();
+            b.set(42);
+            print b.get();",
         );
     }
 

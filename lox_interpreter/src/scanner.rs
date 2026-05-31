@@ -60,7 +60,7 @@ impl std::fmt::Display for Token {
 #[derive(Debug, Clone, PartialEq)]
 pub enum Expr {
     Literal {
-        identifier: String,
+        identifier: Token,
     },
     Binary {
         left: Box<Expr>,
@@ -75,7 +75,7 @@ pub enum Expr {
         expression: Box<Expr>,
     },
     Assign {
-        identifier: String,
+        identifier: Token,
         right: Box<Expr>,
     },
     Logical {
@@ -518,7 +518,6 @@ impl Scanner {
                 }
                 '0'..='9' => {
                     let mut number_str = String::new();
-                    let mut is_float = false;
                     number_str.push(c);
                     while let Some(&next) = chars.peek() {
                         if next.is_ascii_digit() {
@@ -538,7 +537,6 @@ impl Scanner {
                     }
                     if let Some(&next) = chars.peek() {
                         if next == '.' {
-                            is_float = true;
                             chars.next();
                             self.column += 1;
                             number_str.push(next);
@@ -574,21 +572,12 @@ impl Scanner {
                             }
                         }
                     }
-                    if is_float {
-                        tokens.push(Token {
-                            token_type: TokenTypes::Number,
-                            lexeme: number_str,
-                            line: self.line,
-                            column: start_column,
-                        });
-                    } else {
-                        tokens.push(Token {
-                            token_type: TokenTypes::Number,
-                            lexeme: number_str,
-                            line: self.line,
-                            column: start_column,
-                        });
-                    }
+                    tokens.push(Token {
+                        token_type: TokenTypes::Number,
+                        lexeme: number_str,
+                        line: self.line,
+                        column: start_column,
+                    });
                 }
                 'a'..='z' | 'A'..='Z' | '_' => {
                     let mut identifier_str = String::new();
