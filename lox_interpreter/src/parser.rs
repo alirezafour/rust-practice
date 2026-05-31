@@ -973,7 +973,7 @@ mod tests {
             line: 1,
             column: 0,
         };
-        let expected = lit_str("\"hello\"", 1);
+        let expected = lit_str("hello", 1);
 
         let tokens = scanner.scan_tokens().unwrap();
         let mut parser = Parser::new(tokens);

@@ -254,6 +254,14 @@ pub struct Scanner {
 }
 
 impl Scanner {
+    fn make_token(&self, token_type: TokenTypes, lexeme: &str, column: usize) -> Token {
+        Token {
+            token_type,
+            lexeme: lexeme.into(),
+            line: self.line,
+            column,
+        }
+    }
     pub fn scan_tokens(&mut self) -> Result<Vec<Token>, ScannerError> {
         let mut tokens = Vec::new();
         let mut chars = self.source_code.chars().peekable();
@@ -268,254 +276,64 @@ impl Scanner {
             }
             let start_column = self.column;
             match c {
-                '{' => {
-                    let token = Token {
-                        token_type: TokenTypes::LeftBrace,
-                        lexeme: "{".to_string(),
-                        line: self.line,
-                        column: start_column,
-                    };
-                    tokens.push(token);
-                }
-                '-' => {
-                    let token = Token {
-                        token_type: TokenTypes::Minus,
-                        lexeme: "-".to_string(),
-                        line: self.line,
-                        column: start_column,
-                    };
-                    tokens.push(token);
-                }
-                '+' => {
-                    let token = Token {
-                        token_type: TokenTypes::Plus,
-                        lexeme: "+".to_string(),
-                        line: self.line,
-                        column: start_column,
-                    };
-                    tokens.push(token);
-                }
-                ';' => {
-                    let token = Token {
-                        token_type: TokenTypes::Semicolon,
-                        lexeme: ";".to_string(),
-                        line: self.line,
-                        column: start_column,
-                    };
-                    tokens.push(token);
-                }
-                '*' => {
-                    let token = Token {
-                        token_type: TokenTypes::Star,
-                        lexeme: "*".to_string(),
-                        line: self.line,
-                        column: start_column,
-                    };
-                    tokens.push(token);
-                }
-                ',' => {
-                    let token = Token {
-                        token_type: TokenTypes::Comma,
-                        lexeme: ",".to_string(),
-                        line: self.line,
-                        column: start_column,
-                    };
-                    tokens.push(token);
-                }
-                '}' => {
-                    let token = Token {
-                        token_type: TokenTypes::RightBrace,
-                        lexeme: "}".to_string(),
-                        line: self.line,
-                        column: start_column,
-                    };
-                    tokens.push(token);
-                }
-                '(' => {
-                    let token = Token {
-                        token_type: TokenTypes::LeftParen,
-                        lexeme: "(".to_string(),
-                        line: self.line,
-                        column: start_column,
-                    };
-                    tokens.push(token);
-                }
-                ')' => {
-                    let token = Token {
-                        token_type: TokenTypes::RightParen,
-                        lexeme: ")".to_string(),
-                        line: self.line,
-                        column: start_column,
-                    };
-                    tokens.push(token);
-                }
-                '!' => {
-                    if let Some(&next) = chars.peek() {
-                        if next == '=' {
-                            // !=
-                            chars.next();
-                            self.column += 1;
-                            tokens.push(Token {
-                                token_type: TokenTypes::BangEqual,
-                                lexeme: "!=".to_string(),
-                                line: self.line,
-                                column: start_column,
-                            });
-                        } else {
-                            tokens.push(Token {
-                                token_type: TokenTypes::Bang,
-                                lexeme: "!".to_string(),
-                                line: self.line,
-                                column: start_column,
-                            });
-                        }
-                    } else {
-                        tokens.push(Token {
-                            token_type: TokenTypes::Bang,
-                            lexeme: "!".to_string(),
-                            line: self.line,
-                            column: start_column,
-                        });
+                '{' => tokens.push(self.make_token(TokenTypes::LeftBrace, "{", start_column)),
+                '-' => tokens.push(self.make_token(TokenTypes::Minus, "-", start_column)),
+                '+' => tokens.push(self.make_token(TokenTypes::Plus, "+", start_column)),
+                ';' => tokens.push(self.make_token(TokenTypes::Semicolon, ";", start_column)),
+                '*' => tokens.push(self.make_token(TokenTypes::Star, "*", start_column)),
+                ',' => tokens.push(self.make_token(TokenTypes::Comma, ",", start_column)),
+                '}' => tokens.push(self.make_token(TokenTypes::RightBrace, "}", start_column)),
+                '(' => tokens.push(self.make_token(TokenTypes::LeftParen, "(", start_column)),
+                ')' => tokens.push(self.make_token(TokenTypes::RightParen, ")", start_column)),
+                '!' => tokens.push(match chars.peek() {
+                    Some(&'=') => {
+                        chars.next();
+                        self.column += 1;
+                        self.make_token(TokenTypes::BangEqual, "!=", start_column)
                     }
-                }
-                '<' => {
-                    if let Some(&next) = chars.peek() {
-                        if next == '\n' {
-                            return Err(ScannerError {
-                                message: "Unexpected new line.".to_string(),
-                                column: self.column,
-                                line: self.line,
-                            });
-                        }
-                        if next == '=' {
-                            // <=
-                            chars.next();
-                            self.column += 1;
-                            tokens.push(Token {
-                                token_type: TokenTypes::LessEqual,
-                                lexeme: "<=".to_string(),
-                                line: self.line,
-                                column: start_column,
-                            });
-                        } else {
-                            tokens.push(Token {
-                                token_type: TokenTypes::Less,
-                                lexeme: "<".to_string(),
-                                line: self.line,
-                                column: start_column,
-                            });
-                        }
-                    } else {
-                        tokens.push(Token {
-                            token_type: TokenTypes::Less,
-                            lexeme: "<".to_string(),
-                            line: self.line,
-                            column: start_column,
-                        });
+                    _ => self.make_token(TokenTypes::Bang, "!", start_column),
+                }),
+                '<' => tokens.push(match chars.peek() {
+                    Some(&'=') => {
+                        chars.next();
+                        self.column += 1;
+                        self.make_token(TokenTypes::LessEqual, "<=", start_column)
                     }
-                }
-                '>' => {
-                    if let Some(&next) = chars.peek() {
-                        if next == '\n' {
-                            return Err(ScannerError {
-                                message: "Unexpected new line.".to_string(),
-                                column: self.column,
-                                line: self.line,
-                            });
-                        }
-                        if next == '=' {
-                            // >=
-                            chars.next();
-                            self.column += 1;
-                            tokens.push(Token {
-                                token_type: TokenTypes::GreaterEqual,
-                                lexeme: ">=".to_string(),
-                                line: self.line,
-                                column: start_column,
-                            });
-                        } else {
-                            tokens.push(Token {
-                                token_type: TokenTypes::Greater,
-                                lexeme: ">".to_string(),
-                                line: self.line,
-                                column: start_column,
-                            });
-                        }
-                    } else {
-                        tokens.push(Token {
-                            token_type: TokenTypes::Greater,
-                            lexeme: ">".to_string(),
-                            line: self.line,
-                            column: start_column,
-                        });
+                    _ => self.make_token(TokenTypes::Less, "<", start_column),
+                }),
+                '>' => tokens.push(match chars.peek() {
+                    Some(&'=') => {
+                        chars.next();
+                        self.column += 1;
+                        self.make_token(TokenTypes::GreaterEqual, ">=", start_column)
                     }
-                }
-                '=' => {
-                    if let Some(&next) = chars.peek() {
-                        if next == '=' {
-                            // ==
-                            chars.next();
-                            self.column += 1;
-                            tokens.push(Token {
-                                token_type: TokenTypes::EqualEqual,
-                                lexeme: "==".to_string(),
-                                line: self.line,
-                                column: start_column,
-                            });
-                        } else {
-                            tokens.push(Token {
-                                token_type: TokenTypes::Equal,
-                                lexeme: "=".to_string(),
-                                line: self.line,
-                                column: start_column,
-                            });
-                        }
-                    } else {
-                        tokens.push(Token {
-                            token_type: TokenTypes::Equal,
-                            lexeme: "=".to_string(),
-                            line: self.line,
-                            column: start_column,
-                        });
+                    _ => self.make_token(TokenTypes::Greater, ">", start_column),
+                }),
+                '=' => tokens.push(match chars.peek() {
+                    Some(&'=') => {
+                        chars.next();
+                        self.column += 1;
+                        self.make_token(TokenTypes::EqualEqual, "==", start_column)
                     }
-                }
-                '.' => {
-                    if let Some(&next) = chars.peek() {
-                        if next.is_ascii_digit() {
-                            let mut number_str = String::new();
-                            number_str.push(c);
-                            while let Some(&next) = chars.peek() {
-                                if next.is_ascii_digit() {
-                                    chars.next();
-                                    self.column += 1;
-                                    number_str.push(next);
-                                } else {
-                                    break;
-                                }
+                    _ => self.make_token(TokenTypes::Equal, "=", start_column),
+                }),
+                '.' => tokens.push(match chars.peek() {
+                    Some(&next) if next.is_ascii_digit() => {
+                        let mut number_str = String::new();
+                        number_str.push(c);
+                        while let Some(&next) = chars.peek() {
+                            if next.is_ascii_digit() {
+                                chars.next();
+                                self.column += 1;
+                                number_str.push(next);
+                            } else {
+                                break;
                             }
-                            tokens.push(Token {
-                                token_type: TokenTypes::Number,
-                                lexeme: number_str,
-                                line: self.line,
-                                column: start_column,
-                            });
-                        } else {
-                            tokens.push(Token {
-                                token_type: TokenTypes::Dot,
-                                lexeme: ".".to_string(),
-                                line: self.line,
-                                column: start_column,
-                            });
                         }
-                    } else {
-                        tokens.push(Token {
-                            token_type: TokenTypes::Dot,
-                            lexeme: ".".to_string(),
-                            line: self.line,
-                            column: start_column,
-                        });
+                        self.make_token(TokenTypes::Number, &number_str, start_column)
                     }
-                }
+                    _ => self.make_token(TokenTypes::Dot, ".", start_column),
+                }),
                 '0'..='9' => {
                     let mut number_str = String::new();
                     number_str.push(c);
@@ -572,12 +390,7 @@ impl Scanner {
                             }
                         }
                     }
-                    tokens.push(Token {
-                        token_type: TokenTypes::Number,
-                        lexeme: number_str,
-                        line: self.line,
-                        column: start_column,
-                    });
+                    tokens.push(self.make_token(TokenTypes::Number, &number_str, start_column));
                 }
                 'a'..='z' | 'A'..='Z' | '_' => {
                     let mut identifier_str = String::new();
@@ -610,12 +423,7 @@ impl Scanner {
                         "var" => TokenTypes::Var,
                         _ => TokenTypes::Identifier,
                     };
-                    tokens.push(Token {
-                        token_type: token_type,
-                        lexeme: identifier_str,
-                        line: self.line,
-                        column: start_column,
-                    });
+                    tokens.push(self.make_token(token_type, &identifier_str, start_column));
                 }
                 '\"' => {
                     let mut string_literal = String::new();
@@ -669,39 +477,20 @@ impl Scanner {
                             column: self.column,
                         });
                     }
-                    tokens.push(Token {
-                        token_type: TokenTypes::String,
-                        lexeme: format!("\"{}\"", string_literal),
-                        line: self.line,
-                        column: start_column,
-                    });
+                    tokens.push(self.make_token(TokenTypes::String, &string_literal, start_column));
                 }
                 '/' => {
-                    if let Some(&next) = chars.peek() {
-                        if next == '/' {
-                            while let Some(next) = chars.next() {
-                                self.column += 1;
-                                if next == '\n' {
-                                    self.line += 1;
-                                    self.column = 0;
-                                    break;
-                                }
+                    if chars.peek() == Some(&'/') {
+                        while let Some(next) = chars.next() {
+                            self.column += 1;
+                            if next == '\n' {
+                                self.line += 1;
+                                self.column = 0;
+                                break;
                             }
-                        } else {
-                            tokens.push(Token {
-                                token_type: TokenTypes::Slash,
-                                lexeme: "/".to_string(),
-                                line: self.line,
-                                column: start_column,
-                            });
                         }
                     } else {
-                        tokens.push(Token {
-                            token_type: TokenTypes::Slash,
-                            lexeme: '/'.to_string(),
-                            line: self.line,
-                            column: start_column,
-                        });
+                        tokens.push(self.make_token(TokenTypes::Slash, "/", start_column));
                     }
                 }
                 _ => {
@@ -713,12 +502,7 @@ impl Scanner {
                 }
             }
         }
-        tokens.push(Token {
-            token_type: TokenTypes::Eof,
-            lexeme: "".to_string(),
-            line: self.line,
-            column: 0,
-        });
+        tokens.push(self.make_token(TokenTypes::Eof, "", 0));
         Ok(tokens)
     }
 }
@@ -853,7 +637,7 @@ mod tests {
         let tokens = scanner.scan_tokens().unwrap();
         assert_eq!(tokens.len(), 2); // String + EOF
         assert_eq!(tokens[0].token_type, TokenTypes::String);
-        assert_eq!(tokens[0].lexeme, "\"hello world\"");
+        assert_eq!(tokens[0].lexeme, "hello world");
     }
 
     #[test]
@@ -866,7 +650,7 @@ mod tests {
         let tokens = scanner.scan_tokens().unwrap();
         assert_eq!(tokens.len(), 2);
         assert_eq!(tokens[0].token_type, TokenTypes::String);
-        assert_eq!(tokens[0].lexeme, "\"line1\nline2\"");
+        assert_eq!(tokens[0].lexeme, "line1\nline2");
     }
 
     #[test]
