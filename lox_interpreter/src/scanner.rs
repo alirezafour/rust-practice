@@ -101,6 +101,7 @@ pub enum Expr {
         object: Box<Expr>,
         name: String,
     },
+    // This,
 }
 
 impl std::fmt::Display for Expr {
@@ -178,6 +179,7 @@ pub enum Stmt {
     Class {
         name: String,
         methods: HashMap<String, Box<Stmt>>,
+        superclass: Option<Token>,
     },
 }
 
@@ -223,7 +225,11 @@ impl std::fmt::Display for Stmt {
                 };
                 write!(f, "(return{})", val)
             }
-            Stmt::Class { name, methods } => {
+            Stmt::Class {
+                name,
+                methods,
+                superclass,
+            } => {
                 let mut function_names = String::new();
                 for ett in methods {
                     match ett.1.as_ref() {
@@ -234,7 +240,11 @@ impl std::fmt::Display for Stmt {
                         _ => unreachable!("this is never happen."),
                     }
                 }
-                write!(f, "(class {} {})", name, function_names)
+                let sup_class = match superclass {
+                    Some(s) => " ".to_owned() + &s.lexeme,
+                    None => String::new(),
+                };
+                write!(f, "(class {} {}{})", name, function_names, sup_class)
             }
         }
     }

@@ -167,8 +167,8 @@ At the end of every conversation where the user learns a new concept, completes 
 
 ## Learning Tracker
 
-**Current phase:** Phase 5 — Advanced Lox Features (classes/instances complete, inheritance remaining)
-**Next step:** Inheritance (`class Sub < Super`, `super` keyword), then Phase 6 — Idiomatic Rust: Traits
+**Current phase:** Phase 5 — Advanced Lox Features (inheritance complete, `super` keyword remaining)
+**Next step:** `super` keyword (`super.method()`), then Phase 6 — Idiomatic Rust: Traits
 
 ### Phase 1 — Tokenizer (Lexer) ✅ COMPLETE
 - [x] `enum` definition and variants (`TokenType` + `Token` struct)
@@ -230,8 +230,10 @@ At the end of every conversation where the user learns a new concept, completes 
 - [x] Lambdas (`fun (params) { body }`) — `Expr::Lambda` creates anonymous `LoxValue::Function`
 - [x] `PartialEq` removed from `LoxValue` derive — manual `values_equal` helper for equality comparison (functions not comparable)
 - [x] Bug fixes: `unary()` parser order, error message interpolation, env restore on error, division by zero, escape sequence `Err` not `panic!`, unknown char message
-- [x] **5a — Classes and Instances:** `LoxValue::Class { name, methods: HashMap }`, `LoxValue::Instance { fields: HashMap, class_name }`, `Stmt::Class` (stores methods in env), `Expr::Get` (property access: fields → methods lookup), `Expr::Set` (field mutation via `Environment::set_field`), `Expr::Call` on `Class` creates `Instance`. Field/method storage separation, instance state isolation.
-- [ ] **5b — Inheritance:** `class Sub < Super`, `super` keyword, method lookup chain (like env parent chain)
+- [x] **5a — Classes and Instances:** `LoxValue::Class { name, methods: HashMap }`, `LoxValue::Instance { fields: Rc<RefCell<HashMap>>, class_name }`, `Stmt::Class` (stores methods in env), `Expr::Get` (property access: fields → methods lookup), `Expr::Set` (field mutation via `Environment::set_field`), `Expr::Call` on `Class` creates `Instance`. Field/method storage separation, instance state isolation.
+- [x] **5b — `this` keyword:** `this` bound in method env via `fun_env.map.insert("this", obj_val)`. `set_field` walks parent chain for `this`. `Rc<RefCell<HashMap>>` for shared instance fields — `this` and variable point to same instance.
+- [x] **5c — Inheritance:** `class Sub < Super` syntax (`<` in parser, `superclass: Option<Token>` in `Stmt::Class`). `LoxValue::Class` stores `superclass`. Recursive `lookup_class` walks superclass chain for method resolution. `bind_method` helper extracts this-binding + param-binding + execute logic. Superclass validated at class declaration time. Method override supported (subclass method takes precedence). Multi-level inheritance tested (3-level chain).
+- [ ] **5d — `super` keyword:** `super.methodName()` calls parent class's version of method on current `this`
 
 ### Phase 6 — Idiomatic Rust: Traits
 - [x] `#[derive(Debug, Clone, PartialEq)]` — auto-implemented traits (Phase 1-2)
@@ -251,6 +253,8 @@ At the end of every conversation where the user learns a new concept, completes 
 - **Refactoring instinct:** User proactively refactored `parse_statement` into dispatcher + individual methods, made `parse_block` self-contained (consumes own `{`), improved code reuse for lambda and function. Suggested using `check` instead of `check_and_advance` in `parse_statement` for cleaner delegation.
 - **Rust ownership:** Solidified understanding of `String` vs `&str`, slicing, `starts_with`, `parse::<f64>()`, `Clone` vs `Copy` (uses `*v` for bool instead of `v.clone()`). `&Expr` borrowing for AST traversal is natural now.
 - **Class implementation pattern:** Used `HashMap<String, LoxValue>` for both class methods and instance fields, with `class_name` string reference from instance to class in environment. Key insight: `Expr::Set` needs `Environment::set_field` to mutate instance in-place rather than modifying a cloned value. `Expr::Get` lookup order: instance fields first, then class methods (future: superclass chain). Classes stored as `LoxValue::Class` in environment, instances created via call expression.
+- **Inheritance pattern:** `lookup_class` recursive method walks superclass chain — same pattern as `get_cloned` walking environment parent chain. User recognized the analogy independently. `bind_method` extracted to avoid duplicating this-binding logic between direct and inherited method calls. Superclass validation at declaration time (not lazy). Key bug: instances needed `Rc<RefCell<HashMap>>` for shared fields — cloning `LoxValue::Instance` created separate objects, so `this.value = x` modified a clone, not the original variable's instance.
+- **Growing independence:** User implemented inheritance (parser + interpreter) with minimal guidance. Caught the `Option<Token>` vs `Option<String>` design choice. Extracted `bind_method` helper without prompting.
 
 ## graphify
 

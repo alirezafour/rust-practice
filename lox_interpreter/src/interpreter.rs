@@ -22,9 +22,10 @@ pub enum LoxValue {
     Class {
         name: String,
         methods: HashMap<String, LoxValue>,
+        superclass: Option<Token>,
     },
     Instance {
-        fields: HashMap<String, LoxValue>,
+        fields: Rc<RefCell<HashMap<String, LoxValue>>>,
         class_name: String,
     },
 }
@@ -77,12 +78,15 @@ impl Environment {
         match self.map.get_mut(key) {
             Some(v) => match v {
                 LoxValue::Instance { fields, .. } => {
-                    fields.insert(field.into(), value);
+                    fields.borrow_mut().insert(field.into(), value);
                     true
                 }
                 _ => false,
             },
-            None => false,
+            None => match &self.parent {
+                Some(paren) => paren.borrow_mut().set_field(key, field, value),
+                None => false,
+            },
         }
     }
 }
@@ -209,51 +213,48 @@ impl Interpreter {
                                     // Look up the class (clone to avoid borrow issues)
                                     let class_opt =
                                         self.environment.borrow().get_cloned(&class_name);
-                                    if let Some(LoxValue::Class { methods, .. }) = class_opt {
-                                        if let Some(LoxValue::Function {
-                                            name: _,
-                                            parameters,
-                                            body,
-                                            env: _,
-                                        }) = methods.get(name).cloned()
-                                        {
-                                            if arguments.len() != parameters.len() {
-                                                return Err(RuntimeError {
-                                                    token: paren.clone(),
-                                                    message: format!(
-                                                        "method {name} expected {} params.",
-                                                        parameters.len()
-                                                    ),
-                                                });
+                                    if let Some(LoxValue::Class {
+                                        methods,
+                                        superclass,
+                                        ..
+                                    }) = class_opt
+                                    {
+                                        match methods.get(name) {
+                                            Some(LoxValue::Function {
+                                                name: _,
+                                                parameters,
+                                                body,
+                                                env: _,
+                                            }) => {
+                                                return self.bind_method(
+                                                    arguments, parameters, paren, name, body,
+                                                    obj_val,
+                                                );
                                             }
-                                            let old_env = Rc::clone(&self.environment);
-                                            let fun_env = Rc::new(RefCell::new(Environment {
-                                                map: HashMap::new(),
-                                                parent: Some(Rc::clone(&self.environment)),
-                                            }));
-                                            // Bind 'this' to the actual instance
-                                            fun_env.borrow_mut().map.insert("this".into(), obj_val);
-                                            // Bind parameters
-                                            for (pram_name, arg_expr) in
-                                                parameters.iter().zip(arguments.iter())
-                                            {
-                                                let value = self.evaluate(arg_expr)?;
-                                                fun_env
-                                                    .borrow_mut()
-                                                    .map
-                                                    .insert(pram_name.clone(), value);
-                                            }
-                                            self.environment = fun_env;
-                                            return match self.execute(&body) {
-                                                Ok(result) => {
-                                                    self.environment = old_env;
-                                                    Ok(result.unwrap_or(LoxValue::Nil))
+                                            None => match superclass {
+                                                Some(sc_name) => {
+                                                    match self.lookup_class(&sc_name.lexeme, name) {
+                                                        Ok(LoxValue::Function {
+                                                            name,
+                                                            parameters,
+                                                            body,
+                                                            ..
+                                                        }) => {
+                                                            return self.bind_method(
+                                                                arguments,
+                                                                &parameters,
+                                                                paren,
+                                                                &name,
+                                                                &body,
+                                                                obj_val,
+                                                            );
+                                                        }
+                                                        _ => {}
+                                                    }
                                                 }
-                                                Err(err) => {
-                                                    self.environment = old_env;
-                                                    Err(err)
-                                                }
-                                            };
+                                                _ => {}
+                                            },
+                                            _ => {}
                                         }
                                     }
                                 }
@@ -302,7 +303,7 @@ impl Interpreter {
                         }
                     }
                     LoxValue::Class { name, .. } => Ok(LoxValue::Instance {
-                        fields: HashMap::new(),
+                        fields: Rc::new(RefCell::new(HashMap::new())),
                         class_name: name.clone(),
                     }),
                     _ => Err(RuntimeError {
@@ -337,6 +338,7 @@ impl Interpreter {
                         })
                     }
                 }
+
                 _ => Err(RuntimeError {
                     token: Token {
                         token_type: TokenTypes::Identifier,
@@ -351,46 +353,16 @@ impl Interpreter {
                 let obj_val = self.evaluate(object)?;
                 match obj_val {
                     LoxValue::Instance { fields, class_name } => {
-                        if let Some(field) = fields.get(name) {
-                            return Ok(field.clone());
-                        }
-                        match self.environment.borrow().get_cloned(&class_name) {
-                            Some(LoxValue::Class { methods, .. }) => match methods.get(name) {
-                                Some(method) => Ok(method.clone()),
-                                None => Err(RuntimeError {
-                                    token: Token {
-                                        token_type: TokenTypes::Identifier,
-                                        lexeme: name.clone(),
-                                        line: 0,
-                                        column: 0,
-                                    },
-                                    message: "undefined property.".into(),
-                                }),
-                            },
-                            Some(_) => Err(RuntimeError {
-                                token: Token {
-                                    token_type: TokenTypes::Identifier,
-                                    lexeme: class_name.clone(),
-                                    line: 0,
-                                    column: 0,
-                                },
-                                message: "class is not a Class.".into(),
-                            }),
-                            None => Err(RuntimeError {
-                                token: Token {
-                                    token_type: TokenTypes::Identifier,
-                                    lexeme: class_name.clone(),
-                                    line: 0,
-                                    column: 0,
-                                },
-                                message: "class not found.".into(),
-                            }),
+                        if let Some(field) = fields.borrow().get(name) {
+                            Ok(field.clone())
+                        } else {
+                            self.lookup_class(&class_name, name)
                         }
                     }
                     _ => Err(RuntimeError {
                         token: Token {
                             token_type: TokenTypes::Identifier,
-                            lexeme: "object".into(),
+                            lexeme: name.clone(),
                             line: 0,
                             column: 0,
                         },
@@ -488,7 +460,11 @@ impl Interpreter {
                 );
                 Ok(None)
             }
-            Stmt::Class { name, methods } => {
+            Stmt::Class {
+                name,
+                methods,
+                superclass,
+            } => {
                 let mut class_methods = HashMap::new();
                 for (_, stmt) in methods {
                     if let Stmt::Function { name, params, body } = stmt.as_ref() {
@@ -503,11 +479,31 @@ impl Interpreter {
                         );
                     }
                 }
+
+                match superclass {
+                    Some(sc) => match self.environment.borrow().get_cloned(&sc.lexeme) {
+                        Some(LoxValue::Class { .. }) => {}
+                        Some(_) => {
+                            return Err(RuntimeError {
+                                token: sc.clone(),
+                                message: "class is not a Class.".into(),
+                            });
+                        }
+                        None => {
+                            return Err(RuntimeError {
+                                token: sc.clone(),
+                                message: "class not found.".into(),
+                            });
+                        }
+                    },
+                    None => {}
+                }
                 self.environment.borrow_mut().map.insert(
                     name.clone(),
                     LoxValue::Class {
                         name: name.clone(),
                         methods: class_methods,
+                        superclass: superclass.clone(),
                     },
                 );
                 Ok(None)
@@ -518,6 +514,86 @@ impl Interpreter {
                     None => LoxValue::Nil,
                 };
                 Ok(Some(result))
+            }
+        }
+    }
+
+    fn lookup_class(&self, class_name: &str, method_name: &str) -> Result<LoxValue, RuntimeError> {
+        match self.environment.borrow().get_cloned(&class_name) {
+            Some(LoxValue::Class {
+                methods,
+                superclass,
+                ..
+            }) => match (methods.get(method_name), superclass) {
+                (Some(method), _) => Ok(method.clone()),
+                (None, Some(sc)) => self.lookup_class(&sc.lexeme, method_name),
+                (None, None) => Err(RuntimeError {
+                    token: Token {
+                        token_type: TokenTypes::Identifier,
+                        lexeme: method_name.into(),
+                        line: 0,
+                        column: 0,
+                    },
+                    message: "undefined property.".into(),
+                }),
+            },
+            Some(_) => Err(RuntimeError {
+                token: Token {
+                    token_type: TokenTypes::Identifier,
+                    lexeme: class_name.into(),
+                    line: 0,
+                    column: 0,
+                },
+                message: "class is not a Class.".into(),
+            }),
+            None => Err(RuntimeError {
+                token: Token {
+                    token_type: TokenTypes::Identifier,
+                    lexeme: class_name.into(),
+                    line: 0,
+                    column: 0,
+                },
+                message: "class not found.".into(),
+            }),
+        }
+    }
+
+    fn bind_method(
+        &mut self,
+        arguments: &Vec<Expr>,
+        parameters: &Vec<String>,
+        paren: &Token,
+        name: &str,
+        body: &Stmt,
+        obj_val: LoxValue,
+    ) -> Result<LoxValue, RuntimeError> {
+        if arguments.len() != parameters.len() {
+            return Err(RuntimeError {
+                token: paren.clone(),
+                message: format!("method {name} expected {} params.", parameters.len()),
+            });
+        }
+        let old_env = Rc::clone(&self.environment);
+        let fun_env = Rc::new(RefCell::new(Environment {
+            map: HashMap::new(),
+            parent: Some(Rc::clone(&self.environment)),
+        }));
+        // Bind 'this' to the actual instance
+        fun_env.borrow_mut().map.insert("this".into(), obj_val);
+        // Bind parameters
+        for (pram_name, arg_expr) in parameters.iter().zip(arguments.iter()) {
+            let value = self.evaluate(arg_expr)?;
+            fun_env.borrow_mut().map.insert(pram_name.clone(), value);
+        }
+        self.environment = fun_env;
+        match self.execute(&body) {
+            Ok(result) => {
+                self.environment = old_env;
+                Ok(result.unwrap_or(LoxValue::Nil))
+            }
+            Err(err) => {
+                self.environment = old_env;
+                Err(err)
             }
         }
     }
@@ -551,6 +627,7 @@ impl Interpreter {
             }),
         }
     }
+
     fn comparison_eval(
         &self,
         left: &LoxValue,
@@ -577,6 +654,7 @@ impl Interpreter {
             }),
         }
     }
+
     fn equality_eval(
         &self,
         left: &LoxValue,
@@ -607,6 +685,7 @@ impl Interpreter {
             })
         }
     }
+
     fn values_equal(&self, left: &LoxValue, right: &LoxValue) -> Option<bool> {
         match (left, right) {
             (LoxValue::Bool(l), LoxValue::Bool(r)) => Some(l == r),
@@ -616,6 +695,7 @@ impl Interpreter {
             _ => None,
         }
     }
+
     fn arithmetic_eval(
         &self,
         left: &LoxValue,
@@ -927,6 +1007,119 @@ mod tests {
         );
     }
 
+    #[test]
+    fn class_this_multiple_instances_isolated() {
+        assert_program_ok(
+            "class Box {
+                fun set(value) {
+                    this.value = value;
+                }
+                fun get() {
+                    return this.value;
+                }
+            }
+            var a = Box();
+            var b = Box();
+            a.set(10);
+            b.set(20);
+            print a.get();
+            print b.get();",
+        );
+    }
+
+    #[test]
+    fn class_this_modifies_field_multiple_times() {
+        assert_program_ok(
+            "class Counter {
+                fun inc() {
+                    this.count = this.count + 1;
+                    return this.count;
+                }
+            }
+            var c = Counter();
+            c.count = 0;
+            print c.inc();
+            print c.inc();
+            print c.inc();",
+        );
+    }
+
+    #[test]
+    fn class_this_calls_another_method() {
+        assert_program_ok(
+            "class Greeter {
+                fun greet(name) {
+                    return this.format(name);
+                }
+                fun format(name) {
+                    return name;
+                }
+            }
+            var g = Greeter();
+            print g.greet(\"hello\");",
+        );
+    }
+
+    #[test]
+    fn class_field_set_directly_read_via_this() {
+        assert_program_ok(
+            "class Box {
+                fun get() {
+                    return this.value;
+                }
+            }
+            var b = Box();
+            b.value = 42;
+            print b.get();",
+        );
+    }
+
+    #[test]
+    fn class_with_super() {
+        assert_program_ok(
+            "class Shape {
+                fun draw() {
+                    print \"draw\";
+                }
+            }
+            class Box < Shape {
+                fun get() {
+                    return this.value;
+                }
+            }
+            var b = Box();
+            b.value = 42;
+            print b.get();
+            b.draw();",
+        );
+    }
+
+    #[test]
+    fn class_with_super_super() {
+        assert_program_ok(
+            "class Object {
+                fun location() {
+                    return 0.0;
+                }
+            }
+            class Shape < Object {
+                fun draw() {
+                    print \"draw\";
+                }
+            }
+            class Box < Shape {
+                fun get() {
+                    return this.value;
+                }
+            }
+            var b = Box();
+            b.value = 42;
+            print b.get();
+            b.draw();
+            print b.location();",
+        );
+    }
+
     // --- Negative (error) tests ---
 
     fn assert_runtime_error(source: &str, expected_substring: &str) {
@@ -1038,5 +1231,148 @@ mod tests {
             "class Box { } var b = Box(); b.f = 5; b.f();",
             "expected function",
         );
+    }
+
+    #[test]
+    fn runtime_error_this_outside_class() {
+        assert_runtime_error("print this;", "this");
+    }
+
+    #[test]
+    fn runtime_error_this_in_standalone_function() {
+        assert_runtime_error("fun f() { return this; } print f();", "this");
+    }
+
+    #[test]
+    fn runtime_error_call_undefined_method() {
+        assert_runtime_error(
+            "class Box { } var b = Box(); b.nonexistent();",
+            "undefined property",
+        );
+    }
+
+    #[test]
+    fn runtime_error_this_access_undefined_field() {
+        assert_runtime_error(
+            "class Box {
+                fun get() {
+                    return this.neverSet;
+                }
+            }
+            var b = Box();
+            print b.get();",
+            "undefined property",
+        );
+    }
+
+    #[test]
+    fn class_inherit_and_override() {
+        assert_program_ok(
+            "class Animal {
+                fun speak() {
+                    return \"generic\";
+                }
+            }
+            class Dog < Animal {
+                fun speak() {
+                    return \"woof\";
+                }
+            }
+            var a = Animal();
+            var d = Dog();
+            print a.speak();
+            print d.speak();",
+        );
+    }
+
+    #[test]
+    fn class_inherit_method_with_this() {
+        assert_program_ok(
+            "class Shape {
+                fun describe() {
+                    return this.name;
+                }
+            }
+            class Box < Shape {}
+            var b = Box();
+            b.name = \"myBox\";
+            print b.describe();",
+        );
+    }
+
+    #[test]
+    fn class_inherit_multiple_levels_field_access() {
+        assert_program_ok(
+            "class A {
+                fun getA() { return this.val; }
+            }
+            class B < A {
+                fun getB() { return this.val; }
+            }
+            class C < B {
+                fun getC() { return this.val; }
+            }
+            var c = C();
+            c.val = 99;
+            print c.getA();
+            print c.getB();
+            print c.getC();",
+        );
+    }
+
+    #[test]
+    fn class_subclass_has_own_methods_and_inherited() {
+        assert_program_ok(
+            "class Base {
+                fun baseMethod() { return 1; }
+            }
+            class Sub < Base {
+                fun subMethod() { return 2; }
+            }
+            var s = Sub();
+            print s.baseMethod();
+            print s.subMethod();",
+        );
+    }
+
+    #[test]
+    fn class_inherit_set_and_get_across_chain() {
+        assert_program_ok(
+            "class A {}
+            class B < A {}
+            class C < B {}
+            var c = C();
+            c.x = 10;
+            c.y = 20;
+            print c.x;
+            print c.y;",
+        );
+    }
+
+    // --- Negative: inheritance errors ---
+
+    #[test]
+    fn runtime_error_call_undefined_method_on_subclass() {
+        assert_runtime_error(
+            "class Base { fun baseMethod() { return 1; } }
+            class Sub < Base {}
+            var s = Sub();
+            s.nonexistent();",
+            "undefined property",
+        );
+    }
+
+    #[test]
+    fn runtime_error_superclass_not_a_class() {
+        assert_runtime_error(
+            "var x = 5;
+            class Sub < x {}",
+            "class is not a Class",
+        );
+    }
+
+    #[test]
+    fn runtime_error_undefined_superclass() {
+        assert_runtime_error("class Sub < NotFound {}", "class not found");
     }
 }

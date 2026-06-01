@@ -457,6 +457,10 @@ impl Parser {
 
     fn parse_class(&mut self) -> Result<Stmt, ParserError> {
         let name = self.expect(TokenTypes::Identifier)?.lexeme;
+        let mut superclass: Option<Token> = None;
+        if self.check_and_advance(TokenTypes::Less) {
+            superclass = Some(self.expect(TokenTypes::Identifier)?);
+        }
         self.expect(TokenTypes::LeftBrace)?;
         let mut methods = HashMap::new();
         while !self.check(TokenTypes::RightBrace) && !self.check(TokenTypes::Eof) {
@@ -474,7 +478,11 @@ impl Parser {
             };
         }
         self.expect(TokenTypes::RightBrace)?;
-        Ok(Stmt::Class { name, methods })
+        Ok(Stmt::Class {
+            name,
+            methods,
+            superclass,
+        })
     }
 }
 
@@ -1015,6 +1023,25 @@ mod tests {
         let tokens = scanner.scan_tokens().unwrap();
         let mut parser = Parser::new(tokens);
         let expr = parser.assignment().unwrap();
+        assert_eq!(expr, expected);
+    }
+
+    #[test]
+    fn parse_class_super() {
+        let mut scanner = Scanner {
+            source_code: "class Sub < Super {}".into(),
+            line: 1,
+            column: 0,
+        };
+        let expected = Stmt::Class {
+            name: "Sub".into(),
+            methods: HashMap::new(),
+            superclass: Some(mk_token(TokenTypes::Identifier, "Super", 1, 13)),
+        };
+
+        let tokens = scanner.scan_tokens().unwrap();
+        let mut parser = Parser::new(tokens);
+        let expr = parser.parse_statement().unwrap();
         assert_eq!(expr, expected);
     }
 
