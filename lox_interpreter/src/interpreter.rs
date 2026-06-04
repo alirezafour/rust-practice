@@ -162,7 +162,7 @@ impl Interpreter {
                         token: identifier.clone(),
                         message: format!("invalid number. error: {e}"),
                     }),
-                }, // remove unwrap use match
+                },
                 TokenTypes::Identifier => {
                     match self.environment.borrow().get_cloned(&identifier.lexeme) {
                         Some(v) => Ok(v),
@@ -173,7 +173,7 @@ impl Interpreter {
                     }
                 }
                 TokenTypes::This => {
-                    // Look up "this" in the environment (bound by method calls)
+                    // Look up "this" in the environment
                     match self.environment.borrow().get_cloned("this") {
                         Some(v) => Ok(v),
                         None => Err(RuntimeError {
@@ -250,9 +250,7 @@ impl Interpreter {
                         }
                     }
                     Expr::Super { identifier } => {
-                        // 1. Get __super from current env → superclass name
                         let superclass_name = self.environment.borrow().get_cloned("__super");
-                        // 2. Get this from current env → current instance
                         let this_class_name = self.environment.borrow().get_cloned("this");
                         if let (Some(LoxValue::String(sc_name)), Some(instance)) =
                             (superclass_name, this_class_name)
@@ -282,9 +280,6 @@ impl Interpreter {
                                     });
                                 }
                             }
-                            // 3. lookup_class(superclass_name, method_name) → find method
-                            // 4. lookup_superclass_of(superclass_name, method_name) → get THAT class's superclass
-                            // 5. bind_this_method(arguments, ..., this, &that_superclass)
                         }
                     }
                     _ => {}
