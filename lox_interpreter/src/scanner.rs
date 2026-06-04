@@ -1,4 +1,4 @@
-use std::{collections::HashMap, fmt::Display};
+use std::{collections::HashMap, fmt::Display, iter::Peekable};
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum TokenTypes {
@@ -276,13 +276,53 @@ impl std::error::Error for ScannerError {
     }
 }
 
-pub struct Scanner {
-    pub source_code: String,
+pub struct Scanner<'a> {
+    // pub source_code: String,
+    chars: Peekable<std::str::Chars<'a>>,
     pub line: usize,
     pub column: usize,
 }
 
-impl Scanner {
+impl<'a> Iterator for Scanner<'a> {
+    type Item = Result<Token, ScannerError>;
+    fn next(&mut self) -> Option<Self::Item> {
+        let c = loop {
+            match self.chars.next() {
+                None => return None,
+                Some(c) if c.is_whitespace() => {
+                    self.column += 1;
+                    if c == '\n' {
+                        self.line += 1;
+                        self.column = 0;
+                    }
+                    continue;
+                }
+                Some(c) if c == '/' && self.chars.peek() == Some(&'/') => {
+                    while let Some(next) = self.chars.next() {
+                        if next == '\n' {
+                            self.line += 1;
+                            self.column = 0;
+                            break;
+                        }
+                    }
+                }
+                Some(c) => break c,
+            }
+        };
+        self.column += 1;
+        let start_column = self.column;
+        Some(self.get_next_token(c, start_column))
+    }
+}
+
+impl<'a> Scanner<'a> {
+    pub fn new(data: &'a str) -> Self {
+        Self {
+            chars: data.chars().peekable(),
+            column: 0,
+            line: 1,
+        }
+    }
     fn make_token(&self, token_type: TokenTypes, lexeme: &str, column: usize) -> Token {
         Token {
             token_type,
@@ -291,246 +331,220 @@ impl Scanner {
             column,
         }
     }
-    pub fn scan_tokens(&mut self) -> Result<Vec<Token>, ScannerError> {
-        let mut tokens = Vec::new();
-        let mut chars = self.source_code.chars().peekable();
-        while let Some(c) = chars.next() {
-            self.column += 1;
-            if c.is_whitespace() {
-                if c == '\n' {
-                    self.line += 1;
-                    self.column = 0;
+
+    fn get_next_token(&mut self, c: char, start_column: usize) -> Result<Token, ScannerError> {
+        match c {
+            '{' => Ok(self.make_token(TokenTypes::LeftBrace, "{", start_column)),
+            '-' => Ok(self.make_token(TokenTypes::Minus, "-", start_column)),
+            '+' => Ok(self.make_token(TokenTypes::Plus, "+", start_column)),
+            ';' => Ok(self.make_token(TokenTypes::Semicolon, ";", start_column)),
+            '*' => Ok(self.make_token(TokenTypes::Star, "*", start_column)),
+            ',' => Ok(self.make_token(TokenTypes::Comma, ",", start_column)),
+            '}' => Ok(self.make_token(TokenTypes::RightBrace, "}", start_column)),
+            '(' => Ok(self.make_token(TokenTypes::LeftParen, "(", start_column)),
+            ')' => Ok(self.make_token(TokenTypes::RightParen, ")", start_column)),
+            '!' => match self.chars.peek() {
+                Some(&'=') => {
+                    self.chars.next();
+                    self.column += 1;
+                    Ok(self.make_token(TokenTypes::BangEqual, "!=", start_column))
                 }
-                continue;
-            }
-            let start_column = self.column;
-            match c {
-                '{' => tokens.push(self.make_token(TokenTypes::LeftBrace, "{", start_column)),
-                '-' => tokens.push(self.make_token(TokenTypes::Minus, "-", start_column)),
-                '+' => tokens.push(self.make_token(TokenTypes::Plus, "+", start_column)),
-                ';' => tokens.push(self.make_token(TokenTypes::Semicolon, ";", start_column)),
-                '*' => tokens.push(self.make_token(TokenTypes::Star, "*", start_column)),
-                ',' => tokens.push(self.make_token(TokenTypes::Comma, ",", start_column)),
-                '}' => tokens.push(self.make_token(TokenTypes::RightBrace, "}", start_column)),
-                '(' => tokens.push(self.make_token(TokenTypes::LeftParen, "(", start_column)),
-                ')' => tokens.push(self.make_token(TokenTypes::RightParen, ")", start_column)),
-                '!' => tokens.push(match chars.peek() {
-                    Some(&'=') => {
-                        chars.next();
-                        self.column += 1;
-                        self.make_token(TokenTypes::BangEqual, "!=", start_column)
-                    }
-                    _ => self.make_token(TokenTypes::Bang, "!", start_column),
-                }),
-                '<' => tokens.push(match chars.peek() {
-                    Some(&'=') => {
-                        chars.next();
-                        self.column += 1;
-                        self.make_token(TokenTypes::LessEqual, "<=", start_column)
-                    }
-                    _ => self.make_token(TokenTypes::Less, "<", start_column),
-                }),
-                '>' => tokens.push(match chars.peek() {
-                    Some(&'=') => {
-                        chars.next();
-                        self.column += 1;
-                        self.make_token(TokenTypes::GreaterEqual, ">=", start_column)
-                    }
-                    _ => self.make_token(TokenTypes::Greater, ">", start_column),
-                }),
-                '=' => tokens.push(match chars.peek() {
-                    Some(&'=') => {
-                        chars.next();
-                        self.column += 1;
-                        self.make_token(TokenTypes::EqualEqual, "==", start_column)
-                    }
-                    _ => self.make_token(TokenTypes::Equal, "=", start_column),
-                }),
-                '.' => tokens.push(match chars.peek() {
-                    Some(&next) if next.is_ascii_digit() => {
-                        let mut number_str = String::new();
-                        number_str.push(c);
-                        while let Some(&next) = chars.peek() {
-                            if next.is_ascii_digit() {
-                                chars.next();
-                                self.column += 1;
-                                number_str.push(next);
-                            } else {
-                                break;
-                            }
-                        }
-                        self.make_token(TokenTypes::Number, &number_str, start_column)
-                    }
-                    _ => self.make_token(TokenTypes::Dot, ".", start_column),
-                }),
-                '0'..='9' => {
+                _ => Ok(self.make_token(TokenTypes::Bang, "!", start_column)),
+            },
+            '<' => match self.chars.peek() {
+                Some(&'=') => {
+                    self.chars.next();
+                    self.column += 1;
+                    Ok(self.make_token(TokenTypes::LessEqual, "<=", start_column))
+                }
+                _ => Ok(self.make_token(TokenTypes::Less, "<", start_column)),
+            },
+            '>' => match self.chars.peek() {
+                Some(&'=') => {
+                    self.chars.next();
+                    self.column += 1;
+                    Ok(self.make_token(TokenTypes::GreaterEqual, ">=", start_column))
+                }
+                _ => Ok(self.make_token(TokenTypes::Greater, ">", start_column)),
+            },
+            '=' => match self.chars.peek() {
+                Some(&'=') => {
+                    self.chars.next();
+                    self.column += 1;
+                    Ok(self.make_token(TokenTypes::EqualEqual, "==", start_column))
+                }
+                _ => Ok(self.make_token(TokenTypes::Equal, "=", start_column)),
+            },
+            '.' => match self.chars.peek() {
+                Some(&next) if next.is_ascii_digit() => {
                     let mut number_str = String::new();
                     number_str.push(c);
-                    while let Some(&next) = chars.peek() {
+                    while let Some(&next) = self.chars.peek() {
                         if next.is_ascii_digit() {
-                            chars.next();
+                            self.chars.next();
                             self.column += 1;
                             number_str.push(next);
-                        } else if next.is_ascii_alphabetic() {
-                            return Err(ScannerError {
-                                message: format!("Unexpected character after number: {}", next)
-                                    .to_string(),
-                                line: self.line,
-                                column: self.column,
-                            });
                         } else {
                             break;
                         }
                     }
-                    if let Some(&next) = chars.peek() {
-                        if next == '.' {
-                            chars.next();
-                            self.column += 1;
-                            number_str.push(next);
-                            if let Some(&next) = chars.peek() {
-                                if next.is_ascii_digit() {
-                                    while let Some(&next) = chars.peek() {
-                                        if next.is_ascii_digit() {
-                                            chars.next();
-                                            self.column += 1;
-                                            number_str.push(next);
-                                        } else if next.is_ascii_alphabetic() {
-                                            return Err(ScannerError {
-                                                message: std::format!(
-                                                    "Unexpected character after number: {}",
-                                                    next
-                                                )
-                                                .to_string(),
-                                                column: self.column,
-                                                line: self.line,
-                                            });
-                                        } else {
-                                            break;
-                                        }
-                                    }
-                                } else {
-                                    return Err(ScannerError {
-                                        message: "Expected digit after decimal point in number"
-                                            .to_string(),
-                                        column: self.column,
-                                        line: self.line,
-                                    });
-                                }
-                            }
-                        }
-                    }
-                    tokens.push(self.make_token(TokenTypes::Number, &number_str, start_column));
+                    Ok(self.make_token(TokenTypes::Number, &number_str, start_column))
                 }
-                'a'..='z' | 'A'..='Z' | '_' => {
-                    let mut identifier_str = String::new();
-                    identifier_str.push(c);
-                    while let Some(&next) = chars.peek() {
-                        if next.is_ascii_alphanumeric() || next == '_' {
-                            chars.next();
-                            self.column += 1;
-                            identifier_str.push(next);
-                        } else {
-                            break;
-                        }
-                    }
-                    let token_type = match &identifier_str[..] {
-                        "and" => TokenTypes::And,
-                        "or" => TokenTypes::Or,
-                        "class" => TokenTypes::Class,
-                        "if" => TokenTypes::If,
-                        "else" => TokenTypes::Else,
-                        "true" => TokenTypes::True,
-                        "false" => TokenTypes::False,
-                        "fun" => TokenTypes::Fun,
-                        "for" => TokenTypes::For,
-                        "while" => TokenTypes::While,
-                        "nil" => TokenTypes::Nil,
-                        "print" => TokenTypes::Print,
-                        "return" => TokenTypes::Return,
-                        "super" => TokenTypes::Super,
-                        "this" => TokenTypes::This,
-                        "var" => TokenTypes::Var,
-                        _ => TokenTypes::Identifier,
-                    };
-                    tokens.push(self.make_token(token_type, &identifier_str, start_column));
-                }
-                '\"' => {
-                    let mut string_literal = String::new();
-                    let mut is_valid = false;
-                    while let Some(next) = chars.next() {
+                _ => Ok(self.make_token(TokenTypes::Dot, ".", start_column)),
+            },
+            '0'..='9' => {
+                let mut number_str = String::new();
+                number_str.push(c);
+                while let Some(&next) = self.chars.peek() {
+                    if next.is_ascii_digit() {
+                        self.chars.next();
                         self.column += 1;
-                        if next == '\"' {
-                            is_valid = true;
-                            break;
-                        } else if next == '\\' {
-                            if let Some(escaped) = chars.next() {
-                                self.column += 1;
-                                match escaped {
-                                    'n' => string_literal.push('\n'),
-                                    't' => string_literal.push('\t'),
-                                    '\\' => string_literal.push('\\'),
-                                    '\"' => string_literal.push('\"'),
-                                    _ => {
+                        number_str.push(next);
+                    } else if next.is_ascii_alphabetic() {
+                        return Err(ScannerError {
+                            message: format!("Unexpected character after number: {}", next)
+                                .to_string(),
+                            line: self.line,
+                            column: self.column,
+                        });
+                    } else {
+                        break;
+                    }
+                }
+                if let Some(&next) = self.chars.peek() {
+                    if next == '.' {
+                        self.chars.next();
+                        self.column += 1;
+                        number_str.push(next);
+                        if let Some(&next) = self.chars.peek() {
+                            if next.is_ascii_digit() {
+                                while let Some(&next) = self.chars.peek() {
+                                    if next.is_ascii_digit() {
+                                        self.chars.next();
+                                        self.column += 1;
+                                        number_str.push(next);
+                                    } else if next.is_ascii_alphabetic() {
                                         return Err(ScannerError {
-                                            line: self.line,
+                                            message: std::format!(
+                                                "Unexpected character after number: {}",
+                                                next
+                                            )
+                                            .to_string(),
                                             column: self.column,
-                                            message: format!(
-                                                "Invalid escape sequence: \\{}",
-                                                escaped
-                                            ),
+                                            line: self.line,
                                         });
+                                    } else {
+                                        break;
                                     }
                                 }
                             } else {
                                 return Err(ScannerError {
-                                    message: "Unterminated escape sequence in string literal"
+                                    message: "Expected digit after decimal point in number"
                                         .to_string(),
-                                    line: self.line,
                                     column: self.column,
+                                    line: self.line,
                                 });
                             }
-                        } else if next == '\n' {
+                        }
+                    }
+                }
+                Ok(self.make_token(TokenTypes::Number, &number_str, start_column))
+            }
+            'a'..='z' | 'A'..='Z' | '_' => {
+                let mut identifier_str = String::new();
+                identifier_str.push(c);
+                while let Some(&next) = self.chars.peek() {
+                    if next.is_ascii_alphanumeric() || next == '_' {
+                        self.chars.next();
+                        self.column += 1;
+                        identifier_str.push(next);
+                    } else {
+                        break;
+                    }
+                }
+                let token_type = match &identifier_str[..] {
+                    "and" => TokenTypes::And,
+                    "or" => TokenTypes::Or,
+                    "class" => TokenTypes::Class,
+                    "if" => TokenTypes::If,
+                    "else" => TokenTypes::Else,
+                    "true" => TokenTypes::True,
+                    "false" => TokenTypes::False,
+                    "fun" => TokenTypes::Fun,
+                    "for" => TokenTypes::For,
+                    "while" => TokenTypes::While,
+                    "nil" => TokenTypes::Nil,
+                    "print" => TokenTypes::Print,
+                    "return" => TokenTypes::Return,
+                    "super" => TokenTypes::Super,
+                    "this" => TokenTypes::This,
+                    "var" => TokenTypes::Var,
+                    _ => TokenTypes::Identifier,
+                };
+                Ok(self.make_token(token_type, &identifier_str, start_column))
+            }
+            '\"' => {
+                let mut string_literal = String::new();
+                let mut is_valid = false;
+                while let Some(next) = self.chars.next() {
+                    self.column += 1;
+                    if next == '\"' {
+                        is_valid = true;
+                        break;
+                    } else if next == '\\' {
+                        if let Some(escaped) = self.chars.next() {
+                            self.column += 1;
+                            match escaped {
+                                'n' => string_literal.push('\n'),
+                                't' => string_literal.push('\t'),
+                                '\\' => string_literal.push('\\'),
+                                '\"' => string_literal.push('\"'),
+                                _ => {
+                                    return Err(ScannerError {
+                                        line: self.line,
+                                        column: self.column,
+                                        message: format!("Invalid escape sequence: \\{}", escaped),
+                                    });
+                                }
+                            }
+                        } else {
                             return Err(ScannerError {
-                                message: "Unexpected new line in string literal".to_string(),
+                                message: "Unterminated escape sequence in string literal"
+                                    .to_string(),
                                 line: self.line,
                                 column: self.column,
                             });
-                        } else {
-                            string_literal.push(next);
                         }
-                    }
-                    if !is_valid {
+                    } else if next == '\n' {
                         return Err(ScannerError {
-                            message: "Unterminated string literal".to_string(),
+                            message: "Unexpected new line in string literal".to_string(),
                             line: self.line,
                             column: self.column,
                         });
-                    }
-                    tokens.push(self.make_token(TokenTypes::String, &string_literal, start_column));
-                }
-                '/' => {
-                    if chars.peek() == Some(&'/') {
-                        while let Some(next) = chars.next() {
-                            self.column += 1;
-                            if next == '\n' {
-                                self.line += 1;
-                                self.column = 0;
-                                break;
-                            }
-                        }
                     } else {
-                        tokens.push(self.make_token(TokenTypes::Slash, "/", start_column));
+                        string_literal.push(next);
                     }
                 }
-                _ => {
-                    return Err(ScannerError {
+                if !is_valid {
+                    Err(ScannerError {
+                        message: "Unterminated string literal".to_string(),
                         line: self.line,
                         column: self.column,
-                        message: format!("Unknown character: {}", c),
-                    });
+                    })
+                } else {
+                    Ok(self.make_token(TokenTypes::String, &string_literal, start_column))
                 }
             }
+            '/' => Ok(self.make_token(TokenTypes::Slash, "/", start_column)),
+            _ => Err(ScannerError {
+                line: self.line,
+                column: self.column,
+                message: format!("Unknown character: {}", c),
+            }),
         }
+    }
+    pub fn scan_tokens(&mut self) -> Result<Vec<Token>, ScannerError> {
+        let mut tokens = self.collect::<Result<Vec<_>, _>>()?;
         tokens.push(self.make_token(TokenTypes::Eof, "", 0));
         Ok(tokens)
     }
@@ -542,21 +556,13 @@ mod tests {
 
     #[test]
     fn scans_number() {
-        let mut scanner = Scanner {
-            source_code: "12.5".into(),
-            line: 1,
-            column: 0,
-        };
+        let mut scanner = Scanner::new("12.5");
         let tokens = scanner.scan_tokens().unwrap();
         assert_eq!(tokens.len(), 2); // Number + EOF
         assert_eq!(tokens[0].token_type, TokenTypes::Number);
         assert_eq!(tokens[0].lexeme, "12.5");
 
-        let mut scanner = Scanner {
-            source_code: "12".into(),
-            line: 1,
-            column: 0,
-        };
+        let mut scanner = Scanner::new("12");
         let tokens = scanner.scan_tokens().unwrap();
         assert_eq!(tokens.len(), 2); // Number + EOF
         assert_eq!(tokens[0].token_type, TokenTypes::Number);
@@ -565,11 +571,7 @@ mod tests {
 
     #[test]
     fn scans_identifier() {
-        let mut scanner = Scanner {
-            source_code: "abc".into(),
-            line: 1,
-            column: 0,
-        };
+        let mut scanner = Scanner::new("abc");
         let tokens = scanner.scan_tokens().unwrap();
         assert_eq!(tokens.len(), 2);
         assert_eq!(tokens[0].token_type, TokenTypes::Identifier);
@@ -586,11 +588,7 @@ mod tests {
             TokenTypes::Var,
         ];
         let split: Vec<&str> = source.split(" ").collect::<Vec<_>>();
-        let mut scanner = Scanner {
-            source_code: source.clone(),
-            line: 1,
-            column: 0,
-        };
+        let mut scanner = Scanner::new(&source);
         let tokens = scanner.scan_tokens().unwrap();
         assert_eq!(tokens.len(), expected_tokens.len() + 1);
         for idx in 0..expected_tokens.len() {
@@ -609,11 +607,7 @@ mod tests {
             TokenTypes::RightBrace,
         ];
         let split: Vec<&str> = source.split(" ").collect::<Vec<_>>();
-        let mut scanner = Scanner {
-            source_code: source.clone(),
-            line: 1,
-            column: 0,
-        };
+        let mut scanner = Scanner::new(&source);
         let tokens = scanner.scan_tokens().unwrap();
         assert_eq!(tokens.len(), expected_tokens.len() + 1);
         for idx in 0..expected_tokens.len() {
@@ -643,11 +637,7 @@ mod tests {
             TokenTypes::LessEqual,
         ];
         let split: Vec<&str> = source.split(" ").collect::<Vec<_>>();
-        let mut scanner = Scanner {
-            source_code: source.clone(),
-            line: 1,
-            column: 0,
-        };
+        let mut scanner = Scanner::new(&source);
         let tokens = scanner.scan_tokens().unwrap();
         assert_eq!(tokens.len(), expected_tokens.len() + 1);
         for idx in 0..expected_tokens.len() {
@@ -658,11 +648,7 @@ mod tests {
 
     #[test]
     fn scans_string() {
-        let mut scanner = Scanner {
-            source_code: "\"hello world\"".into(),
-            line: 1,
-            column: 0,
-        };
+        let mut scanner = Scanner::new("\"hello world\"");
         let tokens = scanner.scan_tokens().unwrap();
         assert_eq!(tokens.len(), 2); // String + EOF
         assert_eq!(tokens[0].token_type, TokenTypes::String);
@@ -671,11 +657,7 @@ mod tests {
 
     #[test]
     fn scans_string_with_escapes() {
-        let mut scanner = Scanner {
-            source_code: "\"line1\\nline2\"".into(),
-            line: 1,
-            column: 0,
-        };
+        let mut scanner = Scanner::new("\"line1\\nline2\"");
         let tokens = scanner.scan_tokens().unwrap();
         assert_eq!(tokens.len(), 2);
         assert_eq!(tokens[0].token_type, TokenTypes::String);
@@ -706,11 +688,7 @@ mod tests {
             TokenTypes::While,
         ];
         let split: Vec<&str> = source.split(" ").collect::<Vec<_>>();
-        let mut scanner = Scanner {
-            source_code: source.clone(),
-            line: 1,
-            column: 0,
-        };
+        let mut scanner = Scanner::new(&source);
         let tokens = scanner.scan_tokens().unwrap();
         assert_eq!(tokens.len(), expected_tokens.len() + 1); // keywords + EOF
         for idx in 0..expected_tokens.len() {
@@ -723,11 +701,7 @@ mod tests {
     fn scans_multiple_numbers() {
         let source = "1 2.5 100 0.0".to_string();
         let expected_lexemes = vec!["1", "2.5", "100", "0.0"];
-        let mut scanner = Scanner {
-            source_code: source,
-            line: 1,
-            column: 0,
-        };
+        let mut scanner = Scanner::new(&source);
         let tokens = scanner.scan_tokens().unwrap();
         assert_eq!(tokens.len(), 5); // 4 numbers + EOF
         for idx in 0..4 {
@@ -739,11 +713,7 @@ mod tests {
     #[test]
     fn scans_line_tracking() {
         let source = "1\n2\n3".to_string();
-        let mut scanner = Scanner {
-            source_code: source,
-            line: 1,
-            column: 0,
-        };
+        let mut scanner = Scanner::new(&source);
         let tokens = scanner.scan_tokens().unwrap();
         assert_eq!(tokens.len(), 4); // 3 numbers + EOF
         assert_eq!(tokens[0].line, 1);
@@ -757,11 +727,7 @@ mod tests {
     #[test]
     fn scans_comments() {
         let source = "42 // this is a comment".to_string();
-        let mut scanner = Scanner {
-            source_code: source,
-            line: 1,
-            column: 0,
-        };
+        let mut scanner = Scanner::new(&source);
         let tokens = scanner.scan_tokens().unwrap();
         assert_eq!(tokens.len(), 2); // Number + EOF (comment is skipped)
         assert_eq!(tokens[0].token_type, TokenTypes::Number);
@@ -771,11 +737,7 @@ mod tests {
     #[test]
     fn scans_whitespace() {
         let source = "  42  ".to_string();
-        let mut scanner = Scanner {
-            source_code: source,
-            line: 1,
-            column: 0,
-        };
+        let mut scanner = Scanner::new(&source);
         let tokens = scanner.scan_tokens().unwrap();
         assert_eq!(tokens.len(), 2); // Number + EOF
         assert_eq!(tokens[0].token_type, TokenTypes::Number);
@@ -784,11 +746,7 @@ mod tests {
 
     #[test]
     fn scans_eof() {
-        let mut scanner = Scanner {
-            source_code: "42".into(),
-            line: 1,
-            column: 0,
-        };
+        let mut scanner = Scanner::new("42");
         let tokens = scanner.scan_tokens().unwrap();
         assert!(tokens.len() >= 1);
         assert_eq!(tokens.last().unwrap().token_type, TokenTypes::Eof);
@@ -796,11 +754,7 @@ mod tests {
 
     #[test]
     fn scans_empty_source() {
-        let mut scanner = Scanner {
-            source_code: "".into(),
-            line: 1,
-            column: 0,
-        };
+        let mut scanner = Scanner::new("");
         let tokens = scanner.scan_tokens().unwrap();
         assert_eq!(tokens.len(), 1); // only EOF
         assert_eq!(tokens[0].token_type, TokenTypes::Eof);
@@ -818,11 +772,7 @@ mod tests {
             TokenTypes::Eof,
         ];
         let expected_lexemes = vec!["1", "+", "2", "*", "3", ""];
-        let mut scanner = Scanner {
-            source_code: source,
-            line: 1,
-            column: 0,
-        };
+        let mut scanner = Scanner::new(&source);
         let tokens = scanner.scan_tokens().unwrap();
         assert_eq!(tokens.len(), expected_types.len());
         for idx in 0..expected_types.len() {
@@ -843,11 +793,7 @@ mod tests {
             TokenTypes::Eof,
         ];
         let expected_lexemes = vec!["x", ".", "y", "=", "12", ""];
-        let mut scanner = Scanner {
-            source_code: source,
-            line: 1,
-            column: 0,
-        };
+        let mut scanner = Scanner::new(&source);
         let tokens = scanner.scan_tokens().unwrap();
         assert_eq!(tokens.len(), expected_types.len());
         for idx in 0..expected_types.len() {
@@ -859,11 +805,7 @@ mod tests {
     // --- Negative (error) tests ---
 
     fn assert_scan_error(source: &str, expected_substring: &str) {
-        let mut scanner = Scanner {
-            source_code: source.into(),
-            line: 1,
-            column: 0,
-        };
+        let mut scanner = Scanner::new(&source);
         let result = scanner.scan_tokens();
         assert!(
             result.is_err(),

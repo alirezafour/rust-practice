@@ -11,11 +11,7 @@ mod parser;
 mod scanner;
 
 fn get_statements(source: &str) -> Result<Vec<Stmt>, Box<dyn std::error::Error>> {
-    let mut scanner = Scanner {
-        source_code: String::from(source),
-        line: 1,
-        column: 0,
-    };
+    let mut scanner = Scanner::new(&source);
     let tokens = scanner.scan_tokens()?;
     let mut parser = Parser::new(tokens);
     Ok(parser.parse_program()?)

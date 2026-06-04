@@ -168,7 +168,7 @@ At the end of every conversation where the user learns a new concept, completes 
 ## Learning Tracker
 
 **Current phase:** Phase 6 — Idiomatic Rust: Traits
-**Next step:** `std::error::Error` trait implementation for `RuntimeError`, `ParserError`, `ScannerError`
+**Next step:** `From`/`Into` conversion traits
 
 ### Phase 1 — Tokenizer (Lexer) ✅ COMPLETE
 - [x] `enum` definition and variants (`TokenType` + `Token` struct)
@@ -238,8 +238,8 @@ At the end of every conversation where the user learns a new concept, completes 
 ### Phase 6 — Idiomatic Rust: Traits
 - [x] `#[derive(Debug, Clone, PartialEq)]` — auto-implemented traits (Phase 1-2)
 - [x] `impl std::fmt::Display for LoxValue` — first manual trait impl (Phase 3)
-- [ ] `std::error::Error` — implementing the standard error trait for `RuntimeError`, `ParserError`, `ScannerError`
-- [ ] `Iterator` trait — implementing for scanner (associated type `Item`, `next()` method, lazy evaluation)
+- [x] `std::error::Error` — implemented for `RuntimeError`, `ParserError`, `ScannerError` with `Display` + empty `impl std::error::Error`. `main.rs` updated to use `println!("{err}")` instead of manual field access.
+- [x] `Iterator` trait — implemented for `Scanner<'a>`. Struct stores `Peekable<Chars<'a>>` instead of `source_code: String`. Lifetimes learned: `Scanner<'a>` borrows source via `&'a str`. `next()` skips whitespace/comments in loop, passes first real char to `get_next_token(c, start_column)`. `scan_tokens()` delegates to `collect()`. All callers updated to `Scanner::new(source)`. 128 tests pass.
 - [ ] `From`/`Into` — standard conversion traits for error types or value conversions
 - [ ] Custom trait definitions — defining your own trait (e.g., a `Visitor` trait, or a `LoxCallable` trait)
 - [ ] Trait bounds on generics — constraining `fn foo<T: SomeTrait>(...)`

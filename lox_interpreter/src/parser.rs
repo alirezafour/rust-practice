@@ -567,11 +567,7 @@ mod tests {
 
     #[test]
     fn exprs_assign() {
-        let mut scanner = Scanner {
-            source_code: "x=2".into(),
-            line: 1,
-            column: 0,
-        };
+        let mut scanner = Scanner::new("x=2");
         let expected = Expr::Assign {
             identifier: mk_token(TokenTypes::Identifier, "x", 1, 1),
             right: Box::new(lit_num("2", 3)),
@@ -585,11 +581,7 @@ mod tests {
 
     #[test]
     fn exprs_binary() {
-        let mut scanner = Scanner {
-            source_code: "x==2".into(),
-            line: 1,
-            column: 0,
-        };
+        let mut scanner = Scanner::new("x==2");
         let expected = Expr::Binary {
             left: Box::new(lit_id("x", 1)),
             operation: Token {
@@ -606,11 +598,7 @@ mod tests {
         let expr = parser.assignment().unwrap();
         assert_eq!(expr, expected);
 
-        let mut scanner = Scanner {
-            source_code: "3>2".into(),
-            line: 1,
-            column: 0,
-        };
+        let mut scanner = Scanner::new("3>2");
         let expected = Expr::Binary {
             left: Box::new(lit_num("3", 1)),
             operation: Token {
@@ -630,11 +618,7 @@ mod tests {
 
     #[test]
     fn parse_unary() {
-        let mut scanner = Scanner {
-            source_code: "-5".into(),
-            line: 1,
-            column: 0,
-        };
+        let mut scanner = Scanner::new("-5");
         let expected = Expr::Unary {
             operation: Token {
                 token_type: TokenTypes::Minus,
@@ -653,11 +637,7 @@ mod tests {
 
     #[test]
     fn parse_grouping() {
-        let mut scanner = Scanner {
-            source_code: "(1 + 2)".into(),
-            line: 1,
-            column: 0,
-        };
+        let mut scanner = Scanner::new("(1 + 2)");
         let expected = Expr::Grouping {
             expression: Box::new(Expr::Binary {
                 left: Box::new(lit_num("1", 2)),
@@ -679,11 +659,7 @@ mod tests {
 
     #[test]
     fn parse_logical_and() {
-        let mut scanner = Scanner {
-            source_code: "true and false".into(),
-            line: 1,
-            column: 0,
-        };
+        let mut scanner = Scanner::new("true and false");
         let expected = Expr::Logical {
             left: Box::new(lit_true(1)),
             logical: Token {
@@ -703,11 +679,7 @@ mod tests {
 
     #[test]
     fn parse_logical_or() {
-        let mut scanner = Scanner {
-            source_code: "true or false".into(),
-            line: 1,
-            column: 0,
-        };
+        let mut scanner = Scanner::new("true or false");
         let expected = Expr::Logical {
             left: Box::new(lit_true(1)),
             logical: Token {
@@ -728,11 +700,7 @@ mod tests {
     #[test]
     fn parse_precedence() {
         // 2 + 3 * 4 should parse as 2 + (3 * 4) because * binds tighter
-        let mut scanner = Scanner {
-            source_code: "2 + 3 * 4".into(),
-            line: 1,
-            column: 0,
-        };
+        let mut scanner = Scanner::new("2 + 3 * 4");
         let expected = Expr::Binary {
             left: Box::new(lit_num("2", 1)),
             operation: Token {
@@ -761,11 +729,7 @@ mod tests {
 
     #[test]
     fn parse_call() {
-        let mut scanner = Scanner {
-            source_code: "foo(1, 2)".into(),
-            line: 1,
-            column: 0,
-        };
+        let mut scanner = Scanner::new("foo(1, 2)");
         let expected = Expr::Call {
             callee: Box::new(lit_id("foo", 1)),
             paren: Token {
@@ -785,11 +749,7 @@ mod tests {
 
     #[test]
     fn parse_lambda() {
-        let mut scanner = Scanner {
-            source_code: "fun (x) { return x; }".into(),
-            line: 1,
-            column: 0,
-        };
+        let mut scanner = Scanner::new("fun (x) { return x; }");
         let expected = Expr::Lambda {
             params: vec!["x".into()],
             body: Box::new(Stmt::Block {
@@ -807,11 +767,7 @@ mod tests {
 
     #[test]
     fn parse_var_statement() {
-        let mut scanner = Scanner {
-            source_code: "var x = 5;".into(),
-            line: 1,
-            column: 0,
-        };
+        let mut scanner = Scanner::new("var x = 5;");
         let expected = vec![Stmt::Var {
             name: "x".into(),
             value: Some(lit_num("5", 9)),
@@ -825,11 +781,7 @@ mod tests {
 
     #[test]
     fn parse_var_nil() {
-        let mut scanner = Scanner {
-            source_code: "var x;".into(),
-            line: 1,
-            column: 0,
-        };
+        let mut scanner = Scanner::new("var x;");
         let expected = vec![Stmt::Var {
             name: "x".into(),
             value: None,
@@ -843,11 +795,7 @@ mod tests {
 
     #[test]
     fn parse_print() {
-        let mut scanner = Scanner {
-            source_code: "print 42;".into(),
-            line: 1,
-            column: 0,
-        };
+        let mut scanner = Scanner::new("print 42;");
         let expected = vec![Stmt::Print {
             expr: lit_num("42", 7),
         }];
@@ -860,11 +808,7 @@ mod tests {
 
     #[test]
     fn parse_if() {
-        let mut scanner = Scanner {
-            source_code: "if (true) print 1;".into(),
-            line: 1,
-            column: 0,
-        };
+        let mut scanner = Scanner::new("if (true) print 1;");
         let expected = vec![Stmt::If {
             condition: lit_true(5),
             body: Box::new(Stmt::Print {
@@ -881,11 +825,7 @@ mod tests {
 
     #[test]
     fn parse_if_else() {
-        let mut scanner = Scanner {
-            source_code: "if (true) print 1; else print 2;".into(),
-            line: 1,
-            column: 0,
-        };
+        let mut scanner = Scanner::new("if (true) print 1; else print 2;");
         let expected = vec![Stmt::If {
             condition: lit_true(5),
             body: Box::new(Stmt::Print {
@@ -904,11 +844,7 @@ mod tests {
 
     #[test]
     fn parse_while() {
-        let mut scanner = Scanner {
-            source_code: "while (true) print 1;".into(),
-            line: 1,
-            column: 0,
-        };
+        let mut scanner = Scanner::new("while (true) print 1;");
         let expected = vec![Stmt::While {
             condition: lit_true(8),
             body: Box::new(Stmt::Print {
@@ -924,11 +860,7 @@ mod tests {
 
     #[test]
     fn parse_block() {
-        let mut scanner = Scanner {
-            source_code: "{ print 1; print 2; }".into(),
-            line: 1,
-            column: 0,
-        };
+        let mut scanner = Scanner::new("{ print 1; print 2; }");
         let expected = vec![Stmt::Block {
             data: vec![
                 Stmt::Print {
@@ -948,11 +880,7 @@ mod tests {
 
     #[test]
     fn parse_function() {
-        let mut scanner = Scanner {
-            source_code: "fun add(a, b) { return a; }".into(),
-            line: 1,
-            column: 0,
-        };
+        let mut scanner = Scanner::new("fun add(a, b) { return a; }");
         let expected = vec![Stmt::Function {
             name: "add".into(),
             params: vec!["a".into(), "b".into()],
@@ -971,11 +899,7 @@ mod tests {
 
     #[test]
     fn parse_return_value() {
-        let mut scanner = Scanner {
-            source_code: "return 42;".into(),
-            line: 1,
-            column: 0,
-        };
+        let mut scanner = Scanner::new("return 42;");
         let expected = vec![Stmt::Return {
             value: Some(lit_num("42", 8)),
         }];
@@ -988,11 +912,7 @@ mod tests {
 
     #[test]
     fn parse_return_nil() {
-        let mut scanner = Scanner {
-            source_code: "return;".into(),
-            line: 1,
-            column: 0,
-        };
+        let mut scanner = Scanner::new("return;");
         let expected = vec![Stmt::Return { value: None }];
 
         let tokens = scanner.scan_tokens().unwrap();
@@ -1003,11 +923,7 @@ mod tests {
 
     #[test]
     fn parse_string_literal() {
-        let mut scanner = Scanner {
-            source_code: "\"hello\"".into(),
-            line: 1,
-            column: 0,
-        };
+        let mut scanner = Scanner::new("\"hello\"");
         let expected = lit_str("hello", 1);
 
         let tokens = scanner.scan_tokens().unwrap();
@@ -1018,11 +934,7 @@ mod tests {
 
     #[test]
     fn parse_class_set() {
-        let mut scanner = Scanner {
-            source_code: "x.y = 12".into(),
-            line: 1,
-            column: 0,
-        };
+        let mut scanner = Scanner::new("x.y = 12");
         let expected = Expr::Set {
             object: Box::new(lit_id("x", 1)),
             name: "y".into(),
@@ -1037,11 +949,7 @@ mod tests {
 
     #[test]
     fn parse_class_get() {
-        let mut scanner = Scanner {
-            source_code: "x.y".into(),
-            line: 1,
-            column: 0,
-        };
+        let mut scanner = Scanner::new("x.y");
         let expected = Expr::Get {
             object: Box::new(lit_id("x", 1)),
             name: "y".into(),
@@ -1055,11 +963,7 @@ mod tests {
 
     #[test]
     fn parse_super() {
-        let mut scanner = Scanner {
-            source_code: "super.method_name".into(),
-            line: 1,
-            column: 0,
-        };
+        let mut scanner = Scanner::new("super.method_name");
         let expected = Expr::Super {
             identifier: Token {
                 token_type: TokenTypes::Identifier,
@@ -1077,11 +981,7 @@ mod tests {
 
     #[test]
     fn parse_class_super() {
-        let mut scanner = Scanner {
-            source_code: "class Sub < Super {}".into(),
-            line: 1,
-            column: 0,
-        };
+        let mut scanner = Scanner::new("class Sub < Super {}");
         let expected = Stmt::Class {
             name: "Sub".into(),
             methods: HashMap::new(),
@@ -1097,22 +997,14 @@ mod tests {
     // --- Negative (error) tests ---
 
     fn parse_expr_from(source: &str) -> Result<Expr, ParserError> {
-        let mut scanner = Scanner {
-            source_code: source.into(),
-            line: 1,
-            column: 0,
-        };
+        let mut scanner = Scanner::new(&source);
         let tokens = scanner.scan_tokens().unwrap();
         let mut parser = Parser::new(tokens);
         parser.assignment()
     }
 
     fn parse_program_from(source: &str) -> Result<Vec<Stmt>, ParserError> {
-        let mut scanner = Scanner {
-            source_code: source.into(),
-            line: 1,
-            column: 0,
-        };
+        let mut scanner = Scanner::new(&source);
         let tokens = scanner.scan_tokens().unwrap();
         let mut parser = Parser::new(tokens);
         parser.parse_program()

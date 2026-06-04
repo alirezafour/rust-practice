@@ -842,11 +842,7 @@ mod tests {
 
     #[test]
     fn inter_var() {
-        let mut scanner = Scanner {
-            source_code: "var x = 2;".into(),
-            line: 1,
-            column: 0,
-        };
+        let mut scanner = Scanner::new("var x = 2;");
         let expected = None;
         let tokens = scanner.scan_tokens().unwrap();
         let mut parser = Parser::new(tokens);
@@ -860,23 +856,20 @@ mod tests {
 
     #[test]
     fn inter_fun_capture() {
-        let mut scanner = Scanner {
-            source_code: "fun makeCounter() {
-                            var count = 0;
-                            fun counter() {
-                              count = count + 1;
-                              return count;
-                            }
-                            return counter;
-                          }
+        let mut scanner = Scanner::new(
+            "fun makeCounter() {
+                  var count = 0;
+                  fun counter() {
+                    count = count + 1;
+                    return count;
+                  }
+                  return counter;
+                }
 
-                          var c = makeCounter();
-                          print c();  // should print 1
-                          print c();  // should print 2"
-                .into(),
-            line: 1,
-            column: 0,
-        };
+                var c = makeCounter();
+                print c();  // should print 1
+                print c();  // should print 2",
+        );
         let expected = vec![None, None, None, None];
         let tokens = scanner.scan_tokens().unwrap();
         let mut parser = Parser::new(tokens);
@@ -889,11 +882,7 @@ mod tests {
 
     // Helper to run a Lox program and return all execute results in order.
     fn run_program(source: &str) -> Vec<Option<LoxValue>> {
-        let mut scanner = Scanner {
-            source_code: source.into(),
-            line: 1,
-            column: 0,
-        };
+        let mut scanner = Scanner::new(&source);
         let tokens = scanner.scan_tokens().unwrap();
         let mut parser = Parser::new(tokens);
         let statements = parser.parse_program().unwrap();
@@ -1220,11 +1209,7 @@ mod tests {
     // --- Negative (error) tests ---
 
     fn assert_runtime_error(source: &str, expected_substring: &str) {
-        let mut scanner = Scanner {
-            source_code: source.into(),
-            line: 1,
-            column: 0,
-        };
+        let mut scanner = Scanner::new(&source);
         let tokens = scanner.scan_tokens().unwrap();
         let mut parser = Parser::new(tokens);
         let statements = parser.parse_program().unwrap();
