@@ -167,8 +167,8 @@ At the end of every conversation where the user learns a new concept, completes 
 
 ## Learning Tracker
 
-**Current phase:** Phase 5 — Advanced Lox Features (inheritance complete, `super` keyword remaining)
-**Next step:** `super` keyword (`super.method()`), then Phase 6 — Idiomatic Rust: Traits
+**Current phase:** Phase 6 — Idiomatic Rust: Traits
+**Next step:** `std::error::Error` trait implementation for `RuntimeError`, `ParserError`, `ScannerError`
 
 ### Phase 1 — Tokenizer (Lexer) ✅ COMPLETE
 - [x] `enum` definition and variants (`TokenType` + `Token` struct)
@@ -233,7 +233,7 @@ At the end of every conversation where the user learns a new concept, completes 
 - [x] **5a — Classes and Instances:** `LoxValue::Class { name, methods: HashMap }`, `LoxValue::Instance { fields: Rc<RefCell<HashMap>>, class_name }`, `Stmt::Class` (stores methods in env), `Expr::Get` (property access: fields → methods lookup), `Expr::Set` (field mutation via `Environment::set_field`), `Expr::Call` on `Class` creates `Instance`. Field/method storage separation, instance state isolation.
 - [x] **5b — `this` keyword:** `this` bound in method env via `fun_env.map.insert("this", obj_val)`. `set_field` walks parent chain for `this`. `Rc<RefCell<HashMap>>` for shared instance fields — `this` and variable point to same instance.
 - [x] **5c — Inheritance:** `class Sub < Super` syntax (`<` in parser, `superclass: Option<Token>` in `Stmt::Class`). `LoxValue::Class` stores `superclass`. Recursive `lookup_class` walks superclass chain for method resolution. `bind_method` helper extracts this-binding + param-binding + execute logic. Superclass validated at class declaration time. Method override supported (subclass method takes precedence). Multi-level inheritance tested (3-level chain).
-- [ ] **5d — `super` keyword:** `super.methodName()` calls parent class's version of method on current `this`
+- [x] **5d — `super` keyword:** `Expr::Super { identifier: Token }` parsed as dedicated AST node (not `Expr::Get`). `Expr::Call` intercepts `Super` callee, reads `__super` (superclass name as `LoxValue::String`) and `this` (current instance) from environment, calls `lookup_class` + `lookup_superclass_of` + `bind_this_method`. `__super` bound in `bind_this_method` alongside `this`. Multi-level super chain tested (3 levels). Parser rejects `super` without dot. 128 tests passing.
 
 ### Phase 6 — Idiomatic Rust: Traits
 - [x] `#[derive(Debug, Clone, PartialEq)]` — auto-implemented traits (Phase 1-2)
@@ -248,13 +248,12 @@ At the end of every conversation where the user learns a new concept, completes 
 - [ ] Operator overloading — `impl std::ops::Add` etc. (lower priority for this project)
 
 ### Notes
-- **Phase 2 patterns:** User quickly grasped recursive descent once the precedence chain was explained with `2 + 3 * 4`. Key hurdles: `check` vs `check_and_advance` (consuming tokens), assignment "parse first then check", and `or`/`and` needing their own `Logical` variant. Extracted helpers (`check_semicolon`, `expect`) without prompting. Renamed TokenTypes to PascalCase.
-- **Phase 3 approach:** Split eval into `binary_eval` → `arithmetic_eval`/`comparison_eval`/`equality_eval` methods with tuple matching `(left, right, op)`. Used `PartialEq` derive for equality instead of manual comparison. Implemented `std::fmt::Display` for `LoxValue` to clean up print. Used `is_truthy` helper for unary `!`. `Option` chain `as_ref().map().unwrap_or()` for `var x;` (nil default).
-- **Refactoring instinct:** User proactively refactored `parse_statement` into dispatcher + individual methods, made `parse_block` self-contained (consumes own `{`), improved code reuse for lambda and function. Suggested using `check` instead of `check_and_advance` in `parse_statement` for cleaner delegation.
-- **Rust ownership:** Solidified understanding of `String` vs `&str`, slicing, `starts_with`, `parse::<f64>()`, `Clone` vs `Copy` (uses `*v` for bool instead of `v.clone()`). `&Expr` borrowing for AST traversal is natural now.
-- **Class implementation pattern:** Used `HashMap<String, LoxValue>` for both class methods and instance fields, with `class_name` string reference from instance to class in environment. Key insight: `Expr::Set` needs `Environment::set_field` to mutate instance in-place rather than modifying a cloned value. `Expr::Get` lookup order: instance fields first, then class methods (future: superclass chain). Classes stored as `LoxValue::Class` in environment, instances created via call expression.
-- **Inheritance pattern:** `lookup_class` recursive method walks superclass chain — same pattern as `get_cloned` walking environment parent chain. User recognized the analogy independently. `bind_method` extracted to avoid duplicating this-binding logic between direct and inherited method calls. Superclass validation at declaration time (not lazy). Key bug: instances needed `Rc<RefCell<HashMap>>` for shared fields — cloning `LoxValue::Instance` created separate objects, so `this.value = x` modified a clone, not the original variable's instance.
-- **Growing independence:** User implemented inheritance (parser + interpreter) with minimal guidance. Caught the `Option<Token>` vs `Option<String>` design choice. Extracted `bind_method` helper without prompting.
+- **Refactoring instinct:** Proactively refactors into helpers (`check_semicolon`, `expect`, `bind_this_method`, `call_get_handle`, `lookup_superclass_of`). Suggests cleaner patterns without prompting.
+- **Rust ownership:** Solid on `String`/`&str`, `Clone`/`Copy`, `&Expr` borrowing. `Rc<RefCell<>>` for shared state understood via `shared_ptr` analogy.
+- **Classes:** `HashMap<String, LoxValue>` for methods/fields. `Rc<RefCell<HashMap>>` for shared instance fields (key bug: cloning `Instance` created separate objects). `Expr::Get` lookup: fields → class methods → superclass chain.
+- **Inheritance:** `lookup_class` recursive walk (same pattern as env chain). `bind_this_method` handles `this` + `__super` binding. `Expr::Call` intercepts both `Get` and `Super` callees before regular function call path.
+- **Super:** Key design insight — `super` can't be a value stored as a regular variable. It needs its own `Expr` variant because the method must be found on the superclass and bound to current `this`. `Expr::Super` is never evaluated standalone; always handled inside `Expr::Call`. `__super` stored as `LoxValue::String` (class name) in method env, not as `LoxValue::Class`.
+- **Known issues:** `__super` not blocked as user variable name. `.` and `/` at non-EOF without following char don't emit tokens. `Expr::Assign` errors have `line: 0, column: 0`.
 
 ## graphify
 
