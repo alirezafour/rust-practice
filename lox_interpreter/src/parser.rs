@@ -240,6 +240,7 @@ impl Parser {
             || self.check(TokenTypes::False)
             || self.check(TokenTypes::Nil)
             || self.check(TokenTypes::This)
+            || self.check(TokenTypes::Super)
         {
             let key_word = self.advance();
             // Handle this.property like object.property
@@ -251,6 +252,16 @@ impl Parser {
                         identifier: key_word,
                     }),
                     name: member.lexeme,
+                });
+            }
+            if self.check(TokenTypes::Dot) && key_word.token_type == TokenTypes::Super {
+                let _ = self.advance();
+                let member = self.expect(TokenTypes::Identifier)?;
+                return Ok(Expr::Super { identifier: member });
+            } else if key_word.token_type == TokenTypes::Super {
+                return Err(ParserError {
+                    token: key_word,
+                    message: "expected `.` after super.".into(),
                 });
             }
             return Ok(Expr::Literal {
@@ -1027,6 +1038,28 @@ mod tests {
     }
 
     #[test]
+    fn parse_super() {
+        let mut scanner = Scanner {
+            source_code: "super.method_name".into(),
+            line: 1,
+            column: 0,
+        };
+        let expected = Expr::Super {
+            identifier: Token {
+                token_type: TokenTypes::Identifier,
+                lexeme: "method_name".into(),
+                line: 1,
+                column: 7,
+            },
+        };
+
+        let tokens = scanner.scan_tokens().unwrap();
+        let mut parser = Parser::new(tokens);
+        let expr = parser.assignment().unwrap();
+        assert_eq!(expr, expected);
+    }
+
+    #[test]
     fn parse_class_super() {
         let mut scanner = Scanner {
             source_code: "class Sub < Super {}".into(),
@@ -1132,6 +1165,12 @@ mod tests {
     #[test]
     fn parse_error_call_unclosed_paren() {
         let result = parse_expr_from("foo(1, 2");
+        assert_parse_error(result, "expected");
+    }
+
+    #[test]
+    fn parse_error_super_missing_dot() {
+        let result = parse_expr_from("super");
         assert_parse_error(result, "expected");
     }
 

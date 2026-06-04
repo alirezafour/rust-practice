@@ -101,7 +101,9 @@ pub enum Expr {
         object: Box<Expr>,
         name: String,
     },
-    // This,
+    Super {
+        identifier: Token,
+    },
 }
 
 impl std::fmt::Display for Expr {
@@ -140,6 +142,7 @@ impl std::fmt::Display for Expr {
                 value,
             } => write!(f, "(set {} {} {})", object.as_ref(), &name, value.as_ref()),
             Expr::Get { object, name } => write!(f, "(get {} {})", object.as_ref(), name),
+            Expr::Super { identifier } => write!(f, "(super {})", identifier.lexeme),
         }
     }
 }

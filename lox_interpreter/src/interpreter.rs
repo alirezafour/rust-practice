@@ -106,7 +106,6 @@ impl Interpreter {
     }
     fn evaluate(&mut self, expr: &Expr) -> Result<LoxValue, RuntimeError> {
         match expr {
-            // TODO: refactor using token type from Token
             Expr::Literal { identifier } => match &identifier.token_type {
                 TokenTypes::True => Ok(LoxValue::Bool(true)),
                 TokenTypes::False => Ok(LoxValue::Bool(false)),
@@ -199,68 +198,51 @@ impl Interpreter {
                 paren,
                 arguments,
             } => {
-                // Special handling for method calls like obj.method()
-                // Check if callee is a Get expression on an instance
-                if let Expr::Get { object, name } = callee.as_ref() {
-                    if let Expr::Literal {
-                        identifier: obj_token,
-                    } = object.as_ref()
-                    {
-                        if obj_token.token_type == TokenTypes::Identifier {
-                            // Evaluate the object to get the instance
-                            if let Ok(obj_val) = self.evaluate(object) {
-                                if let LoxValue::Instance { ref class_name, .. } = obj_val {
-                                    // Look up the class (clone to avoid borrow issues)
-                                    let class_opt =
-                                        self.environment.borrow().get_cloned(&class_name);
-                                    if let Some(LoxValue::Class {
-                                        methods,
-                                        superclass,
-                                        ..
-                                    }) = class_opt
-                                    {
-                                        match methods.get(name) {
-                                            Some(LoxValue::Function {
-                                                name: _,
-                                                parameters,
-                                                body,
-                                                env: _,
-                                            }) => {
-                                                return self.bind_method(
-                                                    arguments, parameters, paren, name, body,
-                                                    obj_val,
-                                                );
-                                            }
-                                            None => match superclass {
-                                                Some(sc_name) => {
-                                                    match self.lookup_class(&sc_name.lexeme, name) {
-                                                        Ok(LoxValue::Function {
-                                                            name,
-                                                            parameters,
-                                                            body,
-                                                            ..
-                                                        }) => {
-                                                            return self.bind_method(
-                                                                arguments,
-                                                                &parameters,
-                                                                paren,
-                                                                &name,
-                                                                &body,
-                                                                obj_val,
-                                                            );
-                                                        }
-                                                        _ => {}
-                                                    }
-                                                }
-                                                _ => {}
-                                            },
-                                            _ => {}
-                                        }
-                                    }
-                                }
-                            }
+                match callee.as_ref() {
+                    Expr::Get { object, name } => {
+                        if let Some(value) = self.call_get_handle(paren, arguments, object, name) {
+                            return value;
                         }
                     }
+                    Expr::Super { identifier } => {
+                        // 1. Get __super from current env → superclass name
+                        let superclass_name = self.environment.borrow().get_cloned("__super");
+                        // 2. Get this from current env → current instance
+                        let this_class_name = self.environment.borrow().get_cloned("this");
+                        if let (Some(LoxValue::String(sc_name)), Some(instance)) =
+                            (superclass_name, this_class_name)
+                        {
+                            match self.lookup_class(&sc_name, &identifier.lexeme) {
+                                Ok(LoxValue::Function {
+                                    name,
+                                    parameters,
+                                    body,
+                                    ..
+                                }) => {
+                                    let superclass = self.lookup_superclass_of(&sc_name, &name);
+                                    return self.bind_this_method(
+                                        arguments,
+                                        &parameters,
+                                        paren,
+                                        &name,
+                                        &body,
+                                        &instance,
+                                        &superclass,
+                                    );
+                                }
+                                _ => {
+                                    return Err(RuntimeError {
+                                        token: identifier.clone(),
+                                        message: "no super available.".into(),
+                                    });
+                                }
+                            }
+                            // 3. lookup_class(superclass_name, method_name) → find method
+                            // 4. lookup_superclass_of(superclass_name, method_name) → get THAT class's superclass
+                            // 5. bind_this_method(arguments, ..., this, &that_superclass)
+                        }
+                    }
+                    _ => {}
                 }
 
                 // Regular function call
@@ -370,7 +352,82 @@ impl Interpreter {
                     }),
                 }
             }
+            Expr::Super { identifier } => Err(RuntimeError {
+                token: identifier.clone(),
+                message: "super must be called directly.".into(),
+            }),
         }
+    }
+
+    fn call_get_handle(
+        &mut self,
+        paren: &Token,
+        arguments: &Vec<Expr>,
+        object: &Box<Expr>,
+        name: &String,
+    ) -> Option<Result<LoxValue, RuntimeError>> {
+        if let Expr::Literal {
+            identifier: obj_token,
+        } = object.as_ref()
+        {
+            if obj_token.token_type == TokenTypes::Identifier {
+                // Evaluate the object to get the instance
+                if let Ok(obj_val) = self.evaluate(object) {
+                    if let LoxValue::Instance { ref class_name, .. } = obj_val {
+                        // Look up the class (clone to avoid borrow issues)
+                        let class_opt = self.environment.borrow().get_cloned(&class_name);
+                        if let Some(LoxValue::Class {
+                            methods,
+                            superclass,
+                            ..
+                        }) = class_opt
+                        {
+                            match methods.get(name) {
+                                Some(LoxValue::Function {
+                                    parameters, body, ..
+                                }) => {
+                                    return Some(self.bind_this_method(
+                                        arguments,
+                                        parameters,
+                                        paren,
+                                        name,
+                                        body,
+                                        &obj_val,
+                                        &superclass,
+                                    ));
+                                }
+                                None => {
+                                    if let Some(sc_name) = superclass {
+                                        if let Ok(LoxValue::Function {
+                                            name,
+                                            parameters,
+                                            body,
+                                            ..
+                                        }) = self.lookup_class(&sc_name.lexeme, name)
+                                        {
+                                            let superclass =
+                                                self.lookup_superclass_of(&sc_name.lexeme, &name);
+                                            return Some(self.bind_this_method(
+                                                arguments,
+                                                &parameters,
+                                                paren,
+                                                &name,
+                                                &body,
+                                                &obj_val,
+                                                &superclass,
+                                            ));
+                                        }
+                                    }
+                                }
+                                _ => {}
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        None
     }
 
     pub fn execute(&mut self, stmt: &Stmt) -> Result<Option<LoxValue>, RuntimeError> {
@@ -517,6 +574,20 @@ impl Interpreter {
             }
         }
     }
+    fn lookup_superclass_of(&self, class_name: &str, method_name: &str) -> Option<Token> {
+        match self.environment.borrow().get_cloned(&class_name) {
+            Some(LoxValue::Class {
+                methods,
+                superclass,
+                ..
+            }) => match (methods.get(method_name), &superclass) {
+                (Some(_), _) => superclass,
+                (None, Some(sc)) => self.lookup_superclass_of(&sc.lexeme, method_name),
+                _ => None,
+            },
+            _ => None,
+        }
+    }
 
     fn lookup_class(&self, class_name: &str, method_name: &str) -> Result<LoxValue, RuntimeError> {
         match self.environment.borrow().get_cloned(&class_name) {
@@ -558,14 +629,15 @@ impl Interpreter {
         }
     }
 
-    fn bind_method(
+    fn bind_this_method(
         &mut self,
         arguments: &Vec<Expr>,
         parameters: &Vec<String>,
         paren: &Token,
         name: &str,
         body: &Stmt,
-        obj_val: LoxValue,
+        obj_val: &LoxValue,
+        superclass: &Option<Token>,
     ) -> Result<LoxValue, RuntimeError> {
         if arguments.len() != parameters.len() {
             return Err(RuntimeError {
@@ -579,7 +651,16 @@ impl Interpreter {
             parent: Some(Rc::clone(&self.environment)),
         }));
         // Bind 'this' to the actual instance
-        fun_env.borrow_mut().map.insert("this".into(), obj_val);
+        fun_env
+            .borrow_mut()
+            .map
+            .insert("this".into(), obj_val.clone());
+        if let Some(sc_token) = superclass {
+            fun_env
+                .borrow_mut()
+                .map
+                .insert("__super".into(), LoxValue::String(sc_token.lexeme.clone()));
+        }
         // Bind parameters
         for (pram_name, arg_expr) in parameters.iter().zip(arguments.iter()) {
             let value = self.evaluate(arg_expr)?;
@@ -1349,7 +1430,119 @@ mod tests {
         );
     }
 
+    #[test]
+    fn class_inherit_get_super() {
+        assert_program_ok(
+            "class A {
+                fun a_class(){
+                    return 0;
+                }
+                fun set_a(param){
+                    this.a = param;
+                }
+            }
+            class B < A {
+                fun b_class(){
+                    return super.a_class();
+                }
+            }
+            class C < B {
+                fun c_class(){return super.b_class();}
+            }
+            var c = C();
+            c.x = 10;
+            c.y = 20;
+            c.c_class();
+            print c.x;
+            print c.y;",
+        );
+    }
+
+    #[test]
+    fn super_with_parameters() {
+        assert_program_ok(
+            "class A {
+                fun greet(msg) { return msg; }
+            }
+            class B < A {
+                fun greet(msg) { return super.greet(msg); }
+            }
+            var b = B();
+            print b.greet(\"hello\");",
+        );
+    }
+
+    #[test]
+    fn super_modifies_this_fields() {
+        assert_program_ok(
+            "class A {
+                fun set_name() { this.name = \"from_super\"; }
+            }
+            class B < A {
+                fun set_name() { super.set_name(); }
+            }
+            var b = B();
+            b.set_name();
+            print b.name;",
+        );
+    }
+
+    #[test]
+    fn super_multi_level_chain() {
+        assert_program_ok(
+            "class A { fun who() { return \"A\"; } }
+            class B < A { fun who() { return \"B\" + super.who(); } }
+            class C < B { fun who() { return \"C\" + super.who(); } }
+            var c = C();
+            print c.who();",
+        );
+    }
+
+    #[test]
+    fn super_return_value_used() {
+        assert_program_ok(
+            "class A {
+                fun val() { return 42; }
+            }
+            class B < A {
+                fun val() {
+                    var x = super.val();
+                    print x;
+                    return x;
+                }
+            }
+            var b = B();
+            print b.val();",
+        );
+    }
+
     // --- Negative: inheritance errors ---
+
+    #[test]
+    fn runtime_error_super_outside_class() {
+        assert_runtime_error("super.method();", "super must be called");
+    }
+
+    #[test]
+    fn runtime_error_super_undefined_method() {
+        assert_runtime_error(
+            "class A { }
+            class B < A { fun m() { super.nonexistent(); } }
+            var b = B();
+            b.m();",
+            "no super available",
+        );
+    }
+
+    #[test]
+    fn runtime_error_super_no_superclass() {
+        assert_runtime_error(
+            "class A { fun m() { super.foo(); } }
+            var a = A();
+            a.m();",
+            "super must be called",
+        );
+    }
 
     #[test]
     fn runtime_error_call_undefined_method_on_subclass() {
