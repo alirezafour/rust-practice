@@ -168,7 +168,7 @@ At the end of every conversation where the user learns a new concept, completes 
 ## Learning Tracker
 
 **Current phase:** Phase 6 — Idiomatic Rust: Traits
-**Next step:** `From`/`Into` conversion traits
+**Next step:** Operator overloading or wrap up Phase 6
 
 ### Phase 1 — Tokenizer (Lexer) ✅ COMPLETE
 - [x] `enum` definition and variants (`TokenType` + `Token` struct)
@@ -240,10 +240,11 @@ At the end of every conversation where the user learns a new concept, completes 
 - [x] `impl std::fmt::Display for LoxValue` — first manual trait impl (Phase 3)
 - [x] `std::error::Error` — implemented for `RuntimeError`, `ParserError`, `ScannerError` with `Display` + empty `impl std::error::Error`. `main.rs` updated to use `println!("{err}")` instead of manual field access.
 - [x] `Iterator` trait — implemented for `Scanner<'a>`. Struct stores `Peekable<Chars<'a>>` instead of `source_code: String`. Lifetimes learned: `Scanner<'a>` borrows source via `&'a str`. `next()` skips whitespace/comments in loop, passes first real char to `get_next_token(c, start_column)`. `scan_tokens()` delegates to `collect()`. All callers updated to `Scanner::new(source)`. 128 tests pass.
-- [ ] `From`/`Into` — standard conversion traits for error types or value conversions
-- [ ] Custom trait definitions — defining your own trait (e.g., a `Visitor` trait, or a `LoxCallable` trait)
-- [ ] Trait bounds on generics — constraining `fn foo<T: SomeTrait>(...)`
-- [ ] Default trait methods — providing default implementations in trait definitions
+- [x] `From`/`Into` — implemented `From<f64>`, `From<bool>`, `From<String>` for `LoxValue`. Enables `.into()` conversion from Rust primitives. `?` operator uses `From` internally for `Box<dyn Error>` conversions.
+- [x] Custom trait definitions — `SourceLocation` trait in scanner.rs with `line()`, `column()` required methods and `format_location()` default method. Implemented for `Token`, `ScannerError`. Used in `Display` impls.
+- [x] Trait bounds on generics — `format_error<T: SourceLocation>` with `where` clause. Compile-time monomorphization (like C++ templates with concepts).
+- [x] `dyn Trait` — understood conceptually via `Box<dyn std::error::Error>` already in use. Runtime vtable dispatch, same as C++ virtual. No separate exercise needed.
+- [x] Default trait methods — `format_location()` in `SourceLocation` provides default impl, types only override `line()`/`column()`
 - [ ] `dyn Trait` — trait objects for runtime polymorphism (relevant if classes need dynamic dispatch)
 - [ ] Operator overloading — `impl std::ops::Add` etc. (lower priority for this project)
 

@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::scanner::{Expr, Stmt, Token, TokenTypes};
+use crate::scanner::{Expr, SourceLocation, Stmt, Token, TokenTypes, format_error};
 
 #[derive(Debug)]
 pub struct ParserError {
@@ -8,13 +8,18 @@ pub struct ParserError {
     pub message: String,
 }
 
+impl SourceLocation for ParserError {
+    fn line(&self) -> usize {
+        self.token.line
+    }
+    fn column(&self) -> usize {
+        self.token.column
+    }
+}
+
 impl std::fmt::Display for ParserError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "[line: {}, column: {}] [Token: {}] Parser Error: {}",
-            self.token.line, self.token.column, self.token, self.message
-        )
+        write!(f, "{}", format_error(self, "Parser Error", &self.message))
     }
 }
 

@@ -1,5 +1,21 @@
 use std::{collections::HashMap, fmt::Display, iter::Peekable};
 
+pub trait SourceLocation {
+    fn line(&self) -> usize;
+    fn column(&self) -> usize;
+
+    fn format_location(&self) -> String {
+        format!("[line: {}, column: {}]", self.line(), self.column())
+    }
+}
+
+pub fn format_error<T>(loc: &T, kind: &str, message: &str) -> String
+where
+    T: SourceLocation,
+{
+    format!("{} {}: {}", loc.format_location(), kind, message)
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum TokenTypes {
     LeftParen,
@@ -49,6 +65,15 @@ pub struct Token {
     pub lexeme: String,
     pub line: usize,
     pub column: usize,
+}
+
+impl SourceLocation for Token {
+    fn line(&self) -> usize {
+        self.line
+    }
+    fn column(&self) -> usize {
+        self.column
+    }
 }
 
 impl std::fmt::Display for Token {
@@ -260,13 +285,18 @@ pub struct ScannerError {
     pub column: usize,
 }
 
+impl SourceLocation for ScannerError {
+    fn line(&self) -> usize {
+        self.line
+    }
+    fn column(&self) -> usize {
+        self.column
+    }
+}
+
 impl Display for ScannerError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "[line {}, column {}] Scanner Error: {}",
-            self.line, self.column, self.message
-        )
+        write!(f, "{}", format_error(self, "Scanner Error", &self.message),)
     }
 }
 

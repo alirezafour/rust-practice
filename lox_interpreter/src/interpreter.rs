@@ -1,4 +1,4 @@
-use crate::scanner::{Expr, Stmt, Token, TokenTypes};
+use crate::scanner::{Expr, SourceLocation, Stmt, Token, TokenTypes, format_error};
 use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
 #[derive(Debug)]
@@ -7,13 +7,18 @@ pub struct RuntimeError {
     pub message: String,
 }
 
+impl SourceLocation for RuntimeError {
+    fn line(&self) -> usize {
+        self.token.line
+    }
+    fn column(&self) -> usize {
+        self.token.column
+    }
+}
+
 impl std::fmt::Display for RuntimeError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "[line: {}, column: {}] [Token: {}] Parser Error: {}",
-            self.token.line, self.token.column, self.token, self.message
-        )
+        write!(f, "{}", format_error(self, "Runtime Error", &self.message))
     }
 }
 
@@ -44,6 +49,30 @@ pub enum LoxValue {
         fields: Rc<RefCell<HashMap<String, LoxValue>>>,
         class_name: String,
     },
+}
+
+impl From<f64> for LoxValue {
+    fn from(value: f64) -> Self {
+        LoxValue::Number(value)
+    }
+}
+
+impl From<bool> for LoxValue {
+    fn from(value: bool) -> Self {
+        LoxValue::Bool(value)
+    }
+}
+
+impl From<String> for LoxValue {
+    fn from(value: String) -> Self {
+        LoxValue::String(value)
+    }
+}
+
+impl From<&str> for LoxValue {
+    fn from(value: &str) -> Self {
+        LoxValue::String(value.to_string())
+    }
 }
 
 impl std::fmt::Display for LoxValue {
@@ -123,12 +152,12 @@ impl Interpreter {
     fn evaluate(&mut self, expr: &Expr) -> Result<LoxValue, RuntimeError> {
         match expr {
             Expr::Literal { identifier } => match &identifier.token_type {
-                TokenTypes::True => Ok(LoxValue::Bool(true)),
-                TokenTypes::False => Ok(LoxValue::Bool(false)),
+                TokenTypes::True => Ok(true.into()),
+                TokenTypes::False => Ok(false.into()),
                 TokenTypes::Nil => Ok(LoxValue::Nil),
-                TokenTypes::String => Ok(LoxValue::String(identifier.lexeme.clone())),
+                TokenTypes::String => Ok(identifier.lexeme.clone().into()),
                 TokenTypes::Number => match identifier.lexeme.parse::<f64>() {
-                    Ok(v) => Ok(LoxValue::Number(v)),
+                    Ok(v) => Ok(v.into()),
                     Err(e) => Err(RuntimeError {
                         token: identifier.clone(),
                         message: format!("invalid number. error: {e}"),
@@ -170,8 +199,8 @@ impl Interpreter {
             Expr::Unary { operation, right } => {
                 let right_val = self.evaluate(right)?;
                 match (&right_val, &operation.token_type) {
-                    (LoxValue::Number(val), TokenTypes::Minus) => Ok(LoxValue::Number(-val)),
-                    (_, TokenTypes::Bang) => Ok(LoxValue::Bool(!self.is_truthy(&right_val))),
+                    (LoxValue::Number(val), TokenTypes::Minus) => Ok((-val).into()),
+                    (_, TokenTypes::Bang) => Ok((!self.is_truthy(&right_val)).into()),
                     _ => Err(RuntimeError {
                         token: operation.clone(),
                         message: "expected right side to be number or bool.".into(),
@@ -737,13 +766,11 @@ impl Interpreter {
                 Ok(LoxValue::Bool(a > b))
             }
             (LoxValue::Number(a), LoxValue::Number(b), TokenTypes::GreaterEqual) => {
-                Ok(LoxValue::Bool(a >= b))
+                Ok((a >= b).into())
             }
-            (LoxValue::Number(a), LoxValue::Number(b), TokenTypes::Less) => {
-                Ok(LoxValue::Bool(a < b))
-            }
+            (LoxValue::Number(a), LoxValue::Number(b), TokenTypes::Less) => Ok((a < b).into()),
             (LoxValue::Number(a), LoxValue::Number(b), TokenTypes::LessEqual) => {
-                Ok(LoxValue::Bool(a <= b))
+                Ok((a <= b).into())
             }
             _ => Err(RuntimeError {
                 token: op.clone(),
@@ -801,15 +828,9 @@ impl Interpreter {
     ) -> Result<LoxValue, RuntimeError> {
         let token_type = &op.token_type;
         match (left, right, token_type) {
-            (LoxValue::Number(a), LoxValue::Number(b), TokenTypes::Plus) => {
-                Ok(LoxValue::Number(a + b))
-            }
-            (LoxValue::Number(a), LoxValue::Number(b), TokenTypes::Minus) => {
-                Ok(LoxValue::Number(a - b))
-            }
-            (LoxValue::Number(a), LoxValue::Number(b), TokenTypes::Star) => {
-                Ok(LoxValue::Number(a * b))
-            }
+            (LoxValue::Number(a), LoxValue::Number(b), TokenTypes::Plus) => Ok((a + b).into()),
+            (LoxValue::Number(a), LoxValue::Number(b), TokenTypes::Minus) => Ok((a - b).into()),
+            (LoxValue::Number(a), LoxValue::Number(b), TokenTypes::Star) => Ok((a * b).into()),
             (LoxValue::Number(a), LoxValue::Number(b), TokenTypes::Slash) => {
                 let zero = f64::from(0);
                 if b == &zero {
@@ -818,13 +839,13 @@ impl Interpreter {
                         message: "division by 0.0 is not valid.".into(),
                     })
                 } else {
-                    Ok(LoxValue::Number(a / b))
+                    Ok((a / b).into())
                 }
             }
             (LoxValue::String(a), LoxValue::String(b), TokenTypes::Plus) => {
                 let mut new = String::from(a);
                 new.push_str(b);
-                Ok(LoxValue::String(new))
+                Ok(new.into())
             }
             _ => Err(RuntimeError {
                 token: op.clone(),
