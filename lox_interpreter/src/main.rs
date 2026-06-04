@@ -10,33 +10,15 @@ mod interpreter;
 mod parser;
 mod scanner;
 
-fn get_statements(source: &str) -> Vec<Stmt> {
+fn get_statements(source: &str) -> Result<Vec<Stmt>, Box<dyn std::error::Error>> {
     let mut scanner = Scanner {
         source_code: String::from(source),
         line: 1,
         column: 0,
     };
-    let tokens = match scanner.scan_tokens() {
-        Ok(tokens) => tokens,
-        Err(err) => {
-            println!(
-                "\nerror: {} in line [{}:{}]",
-                err.message, err.line, err.column
-            );
-            Vec::new()
-        }
-    };
+    let tokens = scanner.scan_tokens()?;
     let mut parser = Parser::new(tokens);
-    match parser.parse_program() {
-        Ok(data) => data,
-        Err(err) => {
-            println!(
-                "\nerror: {} in line [{}:{}]",
-                err.message, err.token.line, err.token.column
-            );
-            Vec::new()
-        }
-    }
+    Ok(parser.parse_program()?)
 }
 
 fn looped() {
@@ -49,14 +31,17 @@ fn looped() {
         std::io::stdin()
             .read_line(&mut buf)
             .expect("failed to read line.");
-        let statements = get_statements(&buf);
+        let statements = match get_statements(&buf) {
+            Ok(stmts) => stmts,
+            Err(err) => {
+                eprintln!("{err}");
+                Vec::new()
+            }
+        };
         for stmt in statements {
             match interpreter.execute(&stmt) {
                 Ok(_) => {}
-                Err(err) => println!(
-                    "\nerror: {} in line [{}:{}]",
-                    err.message, err.token.line, err.token.column
-                ),
+                Err(err) => eprintln!("{err}"),
             }
         }
     }

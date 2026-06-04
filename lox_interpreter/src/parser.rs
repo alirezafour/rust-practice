@@ -8,6 +8,22 @@ pub struct ParserError {
     pub message: String,
 }
 
+impl std::fmt::Display for ParserError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "[line: {}, column: {}] [Token: {}] Parser Error: {}",
+            self.token.line, self.token.column, self.token, self.message
+        )
+    }
+}
+
+impl std::error::Error for ParserError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        None
+    }
+}
+
 pub struct Parser {
     tokens: Vec<Token>,
     current: usize,

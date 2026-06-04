@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, fmt::Display};
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum TokenTypes {
@@ -258,6 +258,22 @@ pub struct ScannerError {
     pub message: String,
     pub line: usize,
     pub column: usize,
+}
+
+impl Display for ScannerError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "[line {}, column {}] Scanner Error: {}",
+            self.line, self.column, self.message
+        )
+    }
+}
+
+impl std::error::Error for ScannerError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        None
+    }
 }
 
 pub struct Scanner {

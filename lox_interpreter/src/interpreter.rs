@@ -7,6 +7,22 @@ pub struct RuntimeError {
     pub message: String,
 }
 
+impl std::fmt::Display for RuntimeError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "[line: {}, column: {}] [Token: {}] Parser Error: {}",
+            self.token.line, self.token.column, self.token, self.message
+        )
+    }
+}
+
+impl std::error::Error for RuntimeError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        None
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum LoxValue {
     Nil,
