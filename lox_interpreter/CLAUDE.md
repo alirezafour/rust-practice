@@ -4,7 +4,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Purpose
 
-This is a **Rust learning project** — building a compiler for the **Lox language** (from *Crafting Interpreters* by Robert Nystrom). The user is a senior C++ developer learning Rust. Every interaction should be educational.
+This is a **Rust learning project** — building a compiler for the **Lox language**.
+**Detailed progress history:** See `progress-backup.md` for complete phase-by-phase learning record.
 
 ## Lox Language Spec (reference for validation)
 
@@ -55,203 +56,41 @@ cargo test         # run tests
 cargo test test_name  # run a single test
 ```
 
-Edition: 2024. No external dependencies yet.
-
 ## Teaching Guidelines
-
-### CRITICAL: You are a teacher, not a code writer
-
-- **Do NOT write the implementation for the user.** Give hints, explain concepts, ask guiding questions, and let them write the code themselves.
-- When the user asks "how do I do X?", respond with the *concept* and a *hint* — not the full code. Use analogies to C++ where helpful (e.g., "Rust's `enum` is like a C++ `std::variant` but with pattern matching built into the language").
-- If the user is stuck, break the problem into smaller pieces and ask what they think the next step should be.
-- Only show small code snippets (1-3 lines) for syntax they haven't seen before. Never show complete functions or full implementations.
 
 ### Code quality reviews
 
-When reviewing the user's code, check beyond correctness. This is a chance to teach clean Rust idioms. Look for:
+When reviewing the user's code, check beyond correctness. Look for:
+- **Abstraction level**: Functions should do one thing. No premature abstraction.
+- **Idiomatic Rust**: Prefer `match` over nested `if/else`, use `if let` when only one variant matters, prefer `Iterator` methods over manual loops when clearer.
+- **Naming**: Types `PascalCase`, functions/variables `snake_case`. Describe *what*, not *how*.
+- **No over-engineering**: Don't suggest traits, generics, or module splits until the codebase genuinely needs them.
 
-- **Abstraction level**: Functions should do one thing. If a function handles tokenizing *and* parsing, that's too much. But don't push for premature abstraction — a helper function should earn its existence by being called more than once or by genuinely clarifying intent.
-- **Idiomatic Rust**: Prefer `match` over nested `if/else`, use `if let` when only one variant matters, prefer `Iterator` methods (`map`, `filter`, `take_while`) over manual loops when they read clearer.
-- **Naming**: Types are `PascalCase`, functions and variables are `snake_case`. Names should describe *what*, not *how*.
-- **Reusability**: If the user writes the same logic twice, point it out and ask "how could you avoid repeating this?" — but only when it actually repeats, not hypothetically.
-- **No over-engineering**: Don't suggest traits, generics, or module splits until the codebase genuinely needs them. A senior C++ dev will recognize good structure — the goal is helping them express it in Rust, not redesigning architecture.
+When you spot an issue, point out the smell, explain *why*, and ask how they'd fix it.
 
-When you spot an issue, don't touch the code or give direct answer. Instead: point out the smell, explain *why* it matters, and ask how they'd fix it.
-
-When user ask question how to do X or Y, teach him how to do it what needed and fill the knowledge gap you identify he is missing.
-
-
-### Bridge C++ → Rust
-
-The user thinks in C++. Use that to accelerate learning:
-
-| C++ Concept | Rust Equivalent |
-|---|---|
-| `std::variant` + `std::visit` | `enum` + `match` |
-| `std::unique_ptr<T>` | `Box<T>` |
-| `const T&` | `&T` |
-| `T&` | `&mut T` |
-| `std::string_view` | `&str` |
-| `std::string` | `String` |
-| `class/struct` with methods | `struct`/`enum` + `impl` block |
-| `std::optional<T>` | `Option<T>` |
-| `try/catch` | `Result<T, E>` + `?` operator |
-| RAII | Ownership + Drop trait (same idea, compiler-enforced) |
-| `virtual` / polymorphism | `enum` + `match` (often preferred) or trait objects |
-| `nullptr` | `None` / no nulls exist in Rust |
-| pure virtual class / interface | `trait` (no data, only method signatures) |
-| `template <typename T> requires X` | generics with trait bounds: `fn foo<T: Display>(...)` |
-| `operator+` overloading | `impl std::ops::Add for Type` |
-| implicit conversion constructor | `impl From<Other> for Type` / `.into()` |
-
-### Learning Roadmap (teach in this order, one phase at a time)
-
-The compiler is built incrementally. Each phase introduces specific Rust concepts. **Do not advance to the next phase until the user demonstrates understanding of the current one.**
-
-**Phase 1 — Tokenizer (Lexer)**
-- Rust concepts: enums, pattern matching (`match`), iterators, `Option`, ownership basics, `String` vs `&str`
-- Goal: Scan a Lox source string into `Vec<Token>` covering all token types listed in the spec above (keywords, operators, literals, identifiers)
-- C++ bridge: "Think of this like writing a scanner that turns a `std::string_view` into a `std::vector<Token>`, except in Rust the enum is much cleaner than `std::variant`"
-
-**Phase 2 — Parser (AST)**
-- Rust concepts: recursive data types, `Box<T>`, structs, `impl` blocks, borrowing
-- Goal: Turn `Vec<Token>` into a Lox AST — expressions (`Binary`, `Unary`, `Literal`, `Grouping`, `Variable`, `Assign`, `Logical`, `Call`, `Lambda`) and statements (`Expression`, `Print`, `Var`, `Block`, `If`, `While`, `Function`, `Return`)
-- C++ bridge: "`Box<T>` is your `std::unique_ptr<T>` — heap allocation with single ownership. Recursive types need it because the compiler needs to know the size at compile time, just like how you'd use `unique_ptr` for a tree node in C++"
-
-**Phase 3 — Tree-Walk Interpreter**
-- Rust concepts: string formatting, recursion on enum variants, references (`&Expr`), `HashMap`, interior mutability (`RefCell`) for environments
-- Goal: Walk the AST and evaluate Lox expressions/statements directly (no code generation — tree-walk interpreter)
-- C++ bridge: "This is a visitor pattern on your AST, but Rust's `match` makes it far more concise than the C++ virtual dispatch version"
-
-**Phase 4 — Error Handling (refactor)**
-- Rust concepts: `Result<T, E>`, the `?` operator, custom error types
-- Goal: Replace all `panic!` with proper error propagation (parse errors, runtime errors)
-- C++ bridge: "`Result` is like a return type that's either a value or an error — similar to `std::expected` in C++23. The `?` operator is like early-return-on-error, replacing the `try/catch` pattern with explicit error flow"
-
-**Phase 5 — Advanced Lox Features**
-- Closures and lexical scoping (environments linked as a chain)
-- Functions as first-class values
-- Classes and inheritance
-- These introduce: `Rc<T>`, `RefCell<T>`, lifetimes, more complex `enum` variants
-
-**Phase 6 — Idiomatic Rust: Traits**
-- Rust concepts: custom traits, trait bounds, default methods, `dyn Trait`, associated types, `From`/`Into`, `std::error::Error`, `Iterator`, operator overloading
-- Goal: Refactor the interpreter to use idiomatic trait patterns where they genuinely improve the code
-- C++ bridge: "A trait is like a pure virtual base class — a contract that any type can implement. But unlike C++, you can implement a trait for someone else's type (no need to modify the original type). And the compiler verifies everything at compile time"
-- **Do NOT introduce traits prematurely.** Only refactor to use a trait when it removes real duplication or enables real functionality the current code can't express.
-- Natural entry points in this project:
-  - `std::error::Error` for the existing error types (quick win, teaches trait impl)
-  - `Iterator` for the scanner (teaches associated types + the most important trait in Rust)
-  - `From`/`Into` for error type conversions (teaches standard conversion traits)
-  - `Display` already done for `LoxValue` — this was their first trait impl
-  - `Visitor` trait as an alternative to the current `match`-based interpreter (teaches generics + trait objects, but only if the user wants to explore the design tradeoff)
-  - Operator overloading traits (`Add`, `Sub`, etc.) are *not* a great fit here since `LoxValue` arithmetic needs runtime type checking
-
-### MANDATORY: Update the Learning Tracker
-
-At the end of every conversation where the user learns a new concept, completes a phase step, or demonstrates understanding, you **must** update the Learning Tracker section below. Do not skip this. This tracker persists across sessions so you always know where the user stands.
-
-- Mark concepts as `[x]` when the user can explain them back or uses them correctly in their code without help.
-- Mark concepts as `[~]` if introduced but not yet solid — revisit next session.
-- Update the "Current phase" and "Next step" to reflect reality.
-- Add notes if the user struggled with something specific.
-
-### How to handle questions
-
-- "Just show me the code" → Redirect: "I'll help you think through it. What do you think the first step is? In C++, how would you approach this?"
-- "Is this right?" → Review their code. Point out issues using Rust concepts. Ask "what do you think happens here?" before explaining.
-- "What does X mean in Rust?" → Explain with a C++ analogy first, then note the Rust-specific differences.
-- "I'm stuck" → Ask what they've tried, then give a specific hint about the next small step.
+When user asks how to do X or Y, teach what's needed and fill knowledge gaps.
 
 ---
 
-## Learning Tracker
+## Current Status
 
-**Current phase:** Phase 6 — Idiomatic Rust: Traits
-**Next step:** Operator overloading or wrap up Phase 6
+**Phases 1–6: COMPLETE ✅** (128 tests passing)
 
-### Phase 1 — Tokenizer (Lexer) ✅ COMPLETE
-- [x] `enum` definition and variants (`TokenType` + `Token` struct)
-- [x] `#[derive(Debug, Clone, PartialEq)]` — added `Clone` and `PartialEq` in Phase 2 for parser needs
-- [x] `match` and pattern matching basics
-- [x] `Option<T>` and `peek()` pattern
-- [x] Ownership: `String` vs `&str` — understands slicing, `as_str()`, `starts_with()`, `parse::<f64>()`
-- [x] Iterators: `.chars()`, `.peekable()`
-- [x] `Vec<T>` and `push()`
-- [x] Scanning single-char tokens (`(`, `)`, `{`, `}`, `,`, `.`, `-`, `+`, `;`, `/`, `*`)
-- [x] Scanning two-char tokens (`!=`, `==`, `<=`, `>=`)
-- [x] Scanning string literals (`"..."`) — including escape sequences (`\n`, `\t`, `\\`, `\"`)
-- [x] Scanning number literals (integers and floats)
-- [x] Scanning identifiers and keywords (all 16 Lox keywords)
-- [x] Skipping whitespace and newlines + comments (`//`)
-- [x] EOF token added at end of scan
-- [x] Writing a full `Scanner` struct end-to-end
-- **Known edge case:** `.` and `/` at non-EOF positions without a following char don't emit tokens (minor, fix later)
+### Rust Concepts Learned
+- `enum`, `match`, `Option`, `Result`, `?` operator
+- `String` vs `&str`, ownership, borrowing, lifetimes
+- `Box<T>`, `Rc<RefCell<T>>`, interior mutability
+- `struct`, `impl` blocks, `HashMap`, `Vec`
+- `Iterator` trait, `From`/`Into`, `Display`, `std::error::Error`
+- Custom traits (`SourceLocation`), trait bounds, `dyn Trait`, default methods
 
-### Phase 2 — Parser (AST)
-- [x] Recursive enum types for Lox expressions (why they need `Box<T>`)
-- [x] `Box<T>` — heap allocation, single ownership
-- [x] Structs and `impl` blocks for `Expr` and `Stmt` types
-- [x] Borrowing and references (`&self`, `&mut self`)
-- [x] Building and traversing a tree structure
-- [x] Writing a recursive descent parser with operator precedence
-- [x] Parsing expressions: literals (all types), unary, binary, grouping, assignment, logical, call, lambda
-- [x] Parsing statements: expression, print, var, block, if, while, return, function
-- [x] Refactored `parse_statement` into clean dispatcher with individual parse methods
-- [x] `return;` without value returns `Option<Expr>` (None = nil)
+### Next Goals
+- **REPL** — Fix the existing `looped()` REPL in `main.rs` (Read-Eval-Print Loop)
+- **File execution** — `cargo run file.lox` to read and execute a Lox source file
+- **String execution** — `cargo run -e "print 1 + 2;"` to run a Lox string directly
+- **Code cleanup** — fix known issues, remove dead code, consistent error messages
 
-### Phase 3 — Tree-Walk Interpreter
-- [x] `LoxValue` enum (`Nil`, `Bool`, `Number`, `String`, `Function`) with tuple variants
-- [x] `Interpreter` struct with `Environment` (`HashMap<String, LoxValue>`)
-- [x] `evaluate(&mut Expr) -> LoxValue` — mutable borrow for assignment/env mutation
-- [x] `execute(&mut Stmt) -> Option<LoxValue>` — returns `Some` on `return`, `None` otherwise; propagates through blocks/if/while
-- [x] **3a — Evaluating Expressions:** literals, grouping, unary, arithmetic, string concat, comparison, equality, `is_truthy` helper
-- [x] **3b — Statements & State:** print (`Display` trait), var declarations, expression statements, blocks, `parse_program()`, assignment (`get_mut` + deref). Nested scopes deferred to Phase 5
-- [x] **3c — Control Flow:** if/else, while (with return propagation), logical `and`/`or` (short-circuit, returns operand)
-- [x] **3e — For Loops:** `parse_for` desugars to block + while + increment (no new AST node). Body wrapped in `Stmt::Block { body, increment }` for per-iteration increment execution
-- [x] **3d — Functions:** `LoxValue::Function { name, parameters, body }` (stores params + body as value), `Stmt::Function` (registers in env), `Expr::Call` (evaluate callee, bind params via `zip`, fresh env, execute body, return result), `Expr::Lambda` (anonymous `LoxValue::Function`), `Stmt::Return` (returns `Some(value)`, propagates through if/while/block). `Clone`/`PartialEq` added to `Stmt`, `Expr`, `Token`
-
-### Phase 4 — Error Handling (refactor) ✅ COMPLETE
-- [x] `Result<T, E>` vs `panic!` — replaced all user-facing `panic!` with `Err(...)`
-- [x] The `?` operator — used throughout parser and interpreter for error propagation
-- [x] Defining custom error types (`ScannerError`, `ParserError`, `RuntimeError`) with token/message fields
-- [x] Refactoring `scan_tokens()`, `parse_statement()`, `evaluate()`, and `execute()` to return `Result`
-- [x] `check_semicolon` and `expect` return `Result` — propagate errors instead of panicking
-- [x] `Option::transpose()` pattern for `Stmt::Var` where `Option<Result<..>>` → `Result<Option<..>>`
-- [x] `Token` gained `column` field for precise error location reporting; scanner tracks `start_column` per token
-- [x] Helper methods (`binary_eval`, `comparison_eval`, `arithmetic_eval`) take `&Token` for error position
-- **Known limitation:** `Expr::Assign` and undefined variable errors have `line: 0, column: 0` since `Expr::Literal` stores only a `String`, not a `Token`
-
-### Phase 5 — Advanced Lox Features
-- [x] Environment chain — `Rc<RefCell<Environment>>` with `parent` pointer, `get_cloned`/`set` chain walking, block scoping, function call scoping, for loop scoping fixed
-- [x] `Rc<T>` (reference counting, like `shared_ptr`) and `RefCell<T>` (interior mutability, runtime borrow checking)
-- [x] Closures — `LoxValue::Function` captures defining environment via `env: Rc<RefCell<Environment>>` field; `Expr::Call` uses captured env as `fun_env.parent`; `makeCounter` test passes
-- [x] Functions as first-class values — can be stored in variables, passed as args, returned
-- [x] Lambdas (`fun (params) { body }`) — `Expr::Lambda` creates anonymous `LoxValue::Function`
-- [x] `PartialEq` removed from `LoxValue` derive — manual `values_equal` helper for equality comparison (functions not comparable)
-- [x] Bug fixes: `unary()` parser order, error message interpolation, env restore on error, division by zero, escape sequence `Err` not `panic!`, unknown char message
-- [x] **5a — Classes and Instances:** `LoxValue::Class { name, methods: HashMap }`, `LoxValue::Instance { fields: Rc<RefCell<HashMap>>, class_name }`, `Stmt::Class` (stores methods in env), `Expr::Get` (property access: fields → methods lookup), `Expr::Set` (field mutation via `Environment::set_field`), `Expr::Call` on `Class` creates `Instance`. Field/method storage separation, instance state isolation.
-- [x] **5b — `this` keyword:** `this` bound in method env via `fun_env.map.insert("this", obj_val)`. `set_field` walks parent chain for `this`. `Rc<RefCell<HashMap>>` for shared instance fields — `this` and variable point to same instance.
-- [x] **5c — Inheritance:** `class Sub < Super` syntax (`<` in parser, `superclass: Option<Token>` in `Stmt::Class`). `LoxValue::Class` stores `superclass`. Recursive `lookup_class` walks superclass chain for method resolution. `bind_method` helper extracts this-binding + param-binding + execute logic. Superclass validated at class declaration time. Method override supported (subclass method takes precedence). Multi-level inheritance tested (3-level chain).
-- [x] **5d — `super` keyword:** `Expr::Super { identifier: Token }` parsed as dedicated AST node (not `Expr::Get`). `Expr::Call` intercepts `Super` callee, reads `__super` (superclass name as `LoxValue::String`) and `this` (current instance) from environment, calls `lookup_class` + `lookup_superclass_of` + `bind_this_method`. `__super` bound in `bind_this_method` alongside `this`. Multi-level super chain tested (3 levels). Parser rejects `super` without dot. 128 tests passing.
-
-### Phase 6 — Idiomatic Rust: Traits
-- [x] `#[derive(Debug, Clone, PartialEq)]` — auto-implemented traits (Phase 1-2)
-- [x] `impl std::fmt::Display for LoxValue` — first manual trait impl (Phase 3)
-- [x] `std::error::Error` — implemented for `RuntimeError`, `ParserError`, `ScannerError` with `Display` + empty `impl std::error::Error`. `main.rs` updated to use `println!("{err}")` instead of manual field access.
-- [x] `Iterator` trait — implemented for `Scanner<'a>`. Struct stores `Peekable<Chars<'a>>` instead of `source_code: String`. Lifetimes learned: `Scanner<'a>` borrows source via `&'a str`. `next()` skips whitespace/comments in loop, passes first real char to `get_next_token(c, start_column)`. `scan_tokens()` delegates to `collect()`. All callers updated to `Scanner::new(source)`. 128 tests pass.
-- [x] `From`/`Into` — implemented `From<f64>`, `From<bool>`, `From<String>` for `LoxValue`. Enables `.into()` conversion from Rust primitives. `?` operator uses `From` internally for `Box<dyn Error>` conversions.
-- [x] Custom trait definitions — `SourceLocation` trait in scanner.rs with `line()`, `column()` required methods and `format_location()` default method. Implemented for `Token`, `ScannerError`. Used in `Display` impls.
-- [x] Trait bounds on generics — `format_error<T: SourceLocation>` with `where` clause. Compile-time monomorphization (like C++ templates with concepts).
-- [x] `dyn Trait` — understood conceptually via `Box<dyn std::error::Error>` already in use. Runtime vtable dispatch, same as C++ virtual. No separate exercise needed.
-- [x] Default trait methods — `format_location()` in `SourceLocation` provides default impl, types only override `line()`/`column()`
-- [ ] `dyn Trait` — trait objects for runtime polymorphism (relevant if classes need dynamic dispatch)
-- [ ] Operator overloading — `impl std::ops::Add` etc. (lower priority for this project)
-
-### Notes
-- **Refactoring instinct:** Proactively refactors into helpers (`check_semicolon`, `expect`, `bind_this_method`, `call_get_handle`, `lookup_superclass_of`). Suggests cleaner patterns without prompting.
-- **Rust ownership:** Solid on `String`/`&str`, `Clone`/`Copy`, `&Expr` borrowing. `Rc<RefCell<>>` for shared state understood via `shared_ptr` analogy.
-- **Classes:** `HashMap<String, LoxValue>` for methods/fields. `Rc<RefCell<HashMap>>` for shared instance fields (key bug: cloning `Instance` created separate objects). `Expr::Get` lookup: fields → class methods → superclass chain.
-- **Inheritance:** `lookup_class` recursive walk (same pattern as env chain). `bind_this_method` handles `this` + `__super` binding. `Expr::Call` intercepts both `Get` and `Super` callees before regular function call path.
-- **Super:** Key design insight — `super` can't be a value stored as a regular variable. It needs its own `Expr` variant because the method must be found on the superclass and bound to current `this`. `Expr::Super` is never evaluated standalone; always handled inside `Expr::Call`. `__super` stored as `LoxValue::String` (class name) in method env, not as `LoxValue::Class`.
-- **Known issues:** `__super` not blocked as user variable name. `.` and `/` at non-EOF without following char don't emit tokens. `Expr::Assign` errors have `line: 0, column: 0`.
+### Known Issues
+- `__super` not blocked as user variable name
+- `.` and `/` at non-EOF without following char don't emit tokens
+- `Expr::Assign` errors have `line: 0, column: 0`
