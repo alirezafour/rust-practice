@@ -170,7 +170,97 @@ tests/
 - **Traits first**: define trait in `mod.rs`, implement in separate file.
 - **Round-trip property**: `parse(serialize(feed))` must produce equivalent `Feed`.
 - **Fixture-driven**: keep real-world XML snippets in `tests/fixtures/` for integration tests.
+- **Think Before Acting**:
+  - State assumptions before implementing
+  - Ask questions if anything is unclear
+  - Do not guess silently
+  - Prefer correctness over speed
+- **Simplicity First**:
+  - Use the simplest solution that works
+  - Avoid unnecessary abstractions
+  - Don’t over-engineer
+  - Minimize code changes outside the target area
+- **Goal-Oriented Execution**:
+  - Define what “done” means before starting
+  - Work toward the outcome, not the steps
+  - If the goal changes, stop and re-evaluate
+  - Prefer end-to-end working solutions over partial improvements
+- **Before You Act / Explain Plan**:
+  - Briefly describe what you are about to do
+  - List steps before execution
+  - Wait for confirmation only if needed (otherwise proceed)
+  - Keep planning short and concrete
+
+## Progress Tracker
+
+### Phase 1: Model + Error types — `serde`, `thiserror`
+- [x] Add dependencies (serde, thiserror, chrono, criterion)
+- [x] Create `model.rs` with `Feed`, `Entry`, `Author` structs + serde derives
+- [x] Create `error.rs` with thiserror-based error types (`ParserError`, `FetchError`, `FeedNotFoundError`, `SerializationError`)
+- [x] Add `FeedError` aggregate enum with `#[from]` + `#[error(transparent)]`
+- [x] Add `#[serde(default)]` on optional fields for lenient deserialization
+- [x] Create `lib.rs` with `pub mod model; pub mod error;`
+- [x] Write serialization round-trip test (`Feed` → JSON → `Feed`, assert equal)
+- [x] Test: deserialization with missing optional fields
+- [x] Update `model.rs` to use `use serde::{Serialize, Deserialize};` idiom (currently `serde::Serialize`)
+
+### Phase 2: Format detection — enum dispatch, string matching
+- [x] Create `src/detect.rs`, add `pub mod detect;` to `lib.rs`
+- [x] Define `FeedFormat` enum (`Rss`, `Atom`, `Unknown`)
+- [x] Implement `detect(bytes: &[u8]) -> FeedFormat` — sniff XML root element
+- [x] Test: `<rss` input → `FeedFormat::Rss`
+- [x] Test: `<feed` input → `FeedFormat::Atom`
+- [x] Test: garbage/empty input → `FeedFormat::Unknown`
+- [x] Test: XML with BOM/whitespace before root element still detected
+
+### Phase 3: XML parsing — RSS — `quick-xml` streaming
+- [ ] Create `src/parser/mod.rs` with `FeedParser` trait
+- [ ] Create `src/parser/rss.rs` with `RssParser` impl
+- [ ] Add `quick-xml` to parser (already in deps)
+- [ ] Parse `<rss><channel><title>`, `<link>`, `<description>`, `<item>` children
+- [ ] Map `<pubDate>` (RFC 2822) → `DateTime<Utc>`
+- [ ] Create `tests/fixtures/rss_sample.xml` with real-world-like RSS
+- [ ] Test: parse RSS fixture → `Feed` with correct fields
+- [ ] Test: missing optional fields → `None`, not errors
+
+### Phase 4: XML parsing — Atom — trait impls, date parsing
+- [ ] Create `src/parser/atom.rs` with `AtomParser` impl
+- [ ] Parse `<feed><title>`, `<link href="...">`, `<subtitle>`, `<entry>` children
+- [ ] Map `<published>`/`<updated>` (ISO 8601) → `DateTime<Utc>`
+- [ ] Handle `<author><name>`, `<email>`, `<uri>` sub-elements
+- [ ] Create `tests/fixtures/atom_sample.xml`
+- [ ] Test: parse Atom fixture → `Feed` with correct fields
+- [ ] Test: date normalization — both RFC 2822 and ISO 8601 parse to `DateTime<Utc>`
+
+### Phase 5: Async HTTP fetching — `tokio`, `reqwest`
+- [ ] Create `src/fetch.rs`, add `pub mod fetch;` to `lib.rs`
+- [ ] Define `FeedFetcher` trait with `async fn fetch(&self, url: &str) -> Result<Vec<u8>, FeedError>`
+- [ ] Implement `ReqwestFetcher` using reqwest
+- [ ] Test with `#[tokio::test]` and mocked HTTP responses
+- [ ] Handle HTTP errors (404 → `FeedNotFoundError`, network → `FetchError`)
+
+### Phase 6: CLI + pipeline wiring — `clap`, async main
+- [ ] Define CLI args with clap derive in `main.rs` (URL arg, `--format`, `--limit`)
+- [ ] Add `#[tokio::main]` async entry point
+- [ ] Wire pipeline: fetch → detect → parse → serialize → print
+- [ ] Test: `cargo run -- <url>` end-to-end with a real feed
+- [ ] Add JSON serialization output (`FeedSerializer` or direct `serde_json`)
+
+### Phase 7: Concurrent fetching — `tokio::spawn`, `Arc`
+- [ ] Accept multiple URLs via CLI
+- [ ] Fetch all feeds concurrently with `tokio::spawn`
+- [ ] Aggregate results with `futures::join!` or `JoinHandle` collection
+- [ ] Handle partial failures (one feed fails, others succeed)
+- [ ] Add `Arc` if shared state needed between tasks
+
+### Phase 8: XML round-trip serialization
+- [ ] Create `src/serializer/mod.rs` with `FeedSerializer` trait
+- [ ] Create `src/serializer/json.rs` (JSON via serde)
+- [ ] Create `src/serializer/xml.rs` (XML output)
+- [ ] Verify `parse(serialize(feed))` round-trip property for both formats
+- [ ] Handle edge cases: empty feeds, missing fields, special chars in XML
+- [ ] Property-based tests or extended fixture tests
 
 ## Current Status
 
-**Phase 0: Not started** — empty `main.rs`, no dependencies added yet.
+**Phase 2: Complete** ✅ — format detection done. Moving to Phase 3.
