@@ -3,7 +3,7 @@ use crate::{
     error::{FeedError, ParserError},
     model::{Entry, Feed},
 };
-use chrono::{DateTime, FixedOffset, Utc};
+use chrono::{DateTime, Utc};
 use quick_xml::Reader;
 use quick_xml::events::Event;
 
@@ -28,7 +28,7 @@ impl FeedParser for RssParser {
         let mut item_title = String::new();
         let mut item_link = String::new();
         let mut item_desc = String::new();
-        let mut item_published = None;
+        let mut item_published: Option<DateTime<Utc>> = None;
 
         loop {
             match reader.read_event() {

@@ -1,7 +1,7 @@
 use crate::{error::FeedError, model::Feed};
 
 pub trait FeedParser {
-    fn parse(&self, xml: &str) -> Result<Feed, FeedError> {
+    fn parse(&self, _xml: &str) -> Result<Feed, FeedError> {
         todo!()
     }
 }

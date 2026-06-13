@@ -224,13 +224,13 @@ tests/
 - [x] Test: missing optional fields → `None`, not errors
 
 ### Phase 4: XML parsing — Atom — trait impls, date parsing
-- [ ] Create `src/parser/atom.rs` with `AtomParser` impl
-- [ ] Parse `<feed><title>`, `<link href="...">`, `<subtitle>`, `<entry>` children
-- [ ] Map `<published>`/`<updated>` (ISO 8601) → `DateTime<Utc>`
-- [ ] Handle `<author><name>`, `<email>`, `<uri>` sub-elements
+- [x] Create `src/parser/atom.rs` with `AtomParser` impl
+- [x] Parse `<feed><title>`, `<link href="...">`, `<subtitle>`, `<entry>` children
+- [x] Map `<published>`/`<updated>` (ISO 8601) → `DateTime<Utc>`
+- [x] Handle `<author><name>`, `<email>`, `<uri>` sub-elements
 - [ ] Create `tests/fixtures/atom_sample.xml`
-- [ ] Test: parse Atom fixture → `Feed` with correct fields
-- [ ] Test: date normalization — both RFC 2822 and ISO 8601 parse to `DateTime<Utc>`
+- [x] Test: parse Atom fixture → `Feed` with correct fields
+- [x] Test: date normalization — both RFC 2822 and ISO 8601 parse to `DateTime<Utc>`
 
 ### Phase 5: Async HTTP fetching — `tokio`, `reqwest`
 - [ ] Create `src/fetch.rs`, add `pub mod fetch;` to `lib.rs`
@@ -263,4 +263,4 @@ tests/
 
 ## Current Status
 
-**Phase 3: Complete** ✅ — RSS parser done. Moving to Phase 4.
+**Phase 4: Complete** ✅ — Atom parser + date normalization done. Moving to Phase 5.
