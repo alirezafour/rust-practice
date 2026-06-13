@@ -233,11 +233,11 @@ tests/
 - [x] Test: date normalization — both RFC 2822 and ISO 8601 parse to `DateTime<Utc>`
 
 ### Phase 5: Async HTTP fetching — `tokio`, `reqwest`
-- [ ] Create `src/fetch.rs`, add `pub mod fetch;` to `lib.rs`
-- [ ] Define `FeedFetcher` trait with `async fn fetch(&self, url: &str) -> Result<Vec<u8>, FeedError>`
-- [ ] Implement `ReqwestFetcher` using reqwest
-- [ ] Test with `#[tokio::test]` and mocked HTTP responses
-- [ ] Handle HTTP errors (404 → `FeedNotFoundError`, network → `FetchError`)
+- [x] Create `src/fetch.rs`, add `pub mod fetch;` to `lib.rs`
+- [x] Define `FeedFetcher` trait with `async fn fetch(&self, url: &str) -> Result<Vec<u8>, FeedError>`
+- [x] Implement `ReqwestFetcher` using reqwest
+- [x] Test with `#[tokio::test]` and mocked HTTP responses
+- [x] Handle HTTP errors (404 → `FeedNotFoundError`, network → `FetchError`)
 
 ### Phase 6: CLI + pipeline wiring — `clap`, async main
 - [ ] Define CLI args with clap derive in `main.rs` (URL arg, `--format`, `--limit`)
@@ -263,4 +263,4 @@ tests/
 
 ## Current Status
 
-**Phase 4: Complete** ✅ — Atom parser + date normalization done. Moving to Phase 5.
+**Phase 5: Complete** ✅ — async fetch done. Moving to Phase 6.
