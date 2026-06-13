@@ -214,14 +214,14 @@ tests/
 - [x] Test: XML with BOM/whitespace before root element still detected
 
 ### Phase 3: XML parsing — RSS — `quick-xml` streaming
-- [ ] Create `src/parser/mod.rs` with `FeedParser` trait
-- [ ] Create `src/parser/rss.rs` with `RssParser` impl
-- [ ] Add `quick-xml` to parser (already in deps)
-- [ ] Parse `<rss><channel><title>`, `<link>`, `<description>`, `<item>` children
-- [ ] Map `<pubDate>` (RFC 2822) → `DateTime<Utc>`
+- [x] Create `src/parser/mod.rs` with `FeedParser` trait
+- [x] Create `src/parser/rss.rs` with `RssParser` impl
+- [x] Add `quick-xml` to parser (already in deps)
+- [x] Parse `<rss><channel><title>`, `<link>`, `<description>`, `<item>` children
+- [x] Map `<pubDate>` (RFC 2822) → `DateTime<Utc>`
 - [ ] Create `tests/fixtures/rss_sample.xml` with real-world-like RSS
-- [ ] Test: parse RSS fixture → `Feed` with correct fields
-- [ ] Test: missing optional fields → `None`, not errors
+- [x] Test: parse RSS fixture → `Feed` with correct fields
+- [x] Test: missing optional fields → `None`, not errors
 
 ### Phase 4: XML parsing — Atom — trait impls, date parsing
 - [ ] Create `src/parser/atom.rs` with `AtomParser` impl
@@ -263,4 +263,4 @@ tests/
 
 ## Current Status
 
-**Phase 2: Complete** ✅ — format detection done. Moving to Phase 3.
+**Phase 3: Complete** ✅ — RSS parser done. Moving to Phase 4.

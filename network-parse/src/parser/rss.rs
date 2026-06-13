@@ -3,6 +3,7 @@ use crate::{
     error::{FeedError, ParserError},
     model::{Entry, Feed},
 };
+use chrono::{DateTime, FixedOffset, Utc};
 use quick_xml::Reader;
 use quick_xml::events::Event;
 
@@ -27,6 +28,7 @@ impl FeedParser for RssParser {
         let mut item_title = String::new();
         let mut item_link = String::new();
         let mut item_desc = String::new();
+        let mut item_published = None;
 
         loop {
             match reader.read_event() {
@@ -48,6 +50,7 @@ impl FeedParser for RssParser {
                             "title" => item_title = text,
                             "link" => item_link = text,
                             "description" => item_desc = text,
+                            "pubDate" => item_published = parse_rfc2822(&text)?,
                             _ => {}
                         }
                     } else if in_channel {
@@ -81,13 +84,14 @@ impl FeedParser for RssParser {
                             },
                             content: None,
                             author: None,
-                            published: None,
+                            published: item_published,
                             updated: None,
                         });
                         in_item = false;
                         item_title.clear();
                         item_link.clear();
                         item_desc.clear();
+                        item_published = None;
                     }
                     current_tag.clear();
                 }
@@ -112,6 +116,13 @@ impl FeedParser for RssParser {
             updated: None,
             entries,
         })
+    }
+}
+
+fn parse_rfc2822(text: &str) -> Result<Option<DateTime<Utc>>, ParserError> {
+    match DateTime::parse_from_rfc2822(text) {
+        Ok(dt) => Ok(Some(dt.into())),
+        Err(_) => Ok(None),
     }
 }
 
@@ -140,5 +151,30 @@ mod tests {
         assert_eq!(feed.link, "https://example.com");
         assert_eq!(feed.entries.len(), 1);
         assert_eq!(feed.entries[0].title.as_deref(), Some("First Post"));
+    }
+
+    #[test]
+    fn parse_rss_with_dates_multi_items() {
+        let xml = r#"<?xml version="1.0"?>
+                <rss version="2.0"><channel>
+                    <title>Tech News</title>
+                    <link>https://tech.example.com</link>
+                    <description>Tech</description>
+                    <item>
+                        <title>Post A</title>
+                        <link>https://tech.example.com/a</link>
+                        <pubDate>Mon, 01 Jan 2024 12:00:00 +0000</pubDate>
+                    </item>
+                    <item>
+                        <title>Post B</title>
+                        <link>https://tech.example.com/b</link>
+                        <!-- no pubDate -->
+                    </item>
+                </channel></rss>"#;
+
+        let feed = RssParser.parse(xml).unwrap();
+        assert_eq!(feed.entries.len(), 2);
+        assert!(feed.entries[0].published.is_some());
+        assert!(feed.entries[1].published.is_none());
     }
 }
