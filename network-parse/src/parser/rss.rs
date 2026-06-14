@@ -41,23 +41,23 @@ impl FeedParser for RssParser {
                     }
                 }
                 Ok(Event::Text(ev)) => {
-                    let text = String::from_utf8_lossy(ev.as_ref()).trim().to_string();
+                    let text = String::from_utf8_lossy(ev.as_ref()).to_string();
                     if text.is_empty() {
                         continue;
                     }
                     if in_item {
                         match current_tag.as_str() {
-                            "title" => item_title = text,
-                            "link" => item_link = text,
-                            "description" => item_desc = text,
+                            "title" => item_title.push_str(&text),
+                            "link" => item_link.push_str(&text),
+                            "description" => item_desc.push_str(&text),
                             "pubDate" => item_published = parse_rfc2822(&text)?,
                             _ => {}
                         }
                     } else if in_channel {
                         match current_tag.as_str() {
-                            "title" => title = text,
-                            "link" => link = text,
-                            "description" => description = text,
+                            "title" => title.push_str(&text),
+                            "link" => link.push_str(&text),
+                            "description" => description.push_str(&text),
                             _ => {}
                         }
                     }
@@ -69,17 +69,46 @@ impl FeedParser for RssParser {
                     }
                     if in_item {
                         match current_tag.as_str() {
-                            "title" => item_title = text,
-                            "link" => item_link = text,
-                            "description" => item_desc = text,
+                            "title" => item_title.push_str(&text),
+                            "link" => item_link.push_str(&text),
+                            "description" => item_desc.push_str(&text),
                             "pubDate" => item_published = parse_rfc2822(&text)?,
                             _ => {}
                         }
                     } else if in_channel {
                         match current_tag.as_str() {
-                            "title" => title = text,
-                            "link" => link = text,
-                            "description" => description = text,
+                            "title" => title.push_str(&text),
+                            "link" => link.push_str(&text),
+                            "description" => description.push_str(&text),
+                            _ => {}
+                        }
+                    }
+                }
+                Ok(Event::GeneralRef(ev)) => {
+                    let text: String = match String::from_utf8_lossy(ev.as_ref()).trim() {
+                        "amp" => "&".into(),
+                        "lt" => "<".into(),
+                        "gt" => ">".into(),
+                        "quot" => "\"".into(),
+                        "apos" => "'".into(),
+                        _ => "".into(),
+                    };
+                    if text.is_empty() {
+                        continue;
+                    }
+                    if in_item {
+                        match current_tag.as_str() {
+                            "title" => item_title.push_str(&text),
+                            "link" => item_link.push_str(&text),
+                            "description" => item_desc.push_str(&text),
+                            "pubDate" => item_published = parse_rfc2822(&text)?,
+                            _ => {}
+                        }
+                    } else if in_channel {
+                        match current_tag.as_str() {
+                            "title" => title.push_str(&text),
+                            "link" => link.push_str(&text),
+                            "description" => description.push_str(&text),
                             _ => {}
                         }
                     }
@@ -92,17 +121,17 @@ impl FeedParser for RssParser {
                             title: if item_title.is_empty() {
                                 None
                             } else {
-                                Some(item_title.clone())
+                                Some(item_title.trim().into())
                             },
                             link: if item_link.is_empty() {
                                 None
                             } else {
-                                Some(item_link.clone())
+                                Some(item_link.trim().into())
                             },
                             summary: if item_desc.is_empty() {
                                 None
                             } else {
-                                Some(item_desc.clone())
+                                Some(item_desc.trim().into())
                             },
                             content: None,
                             author: None,
@@ -226,6 +255,26 @@ mod tests {
                 .as_ref()
                 .unwrap()
                 .contains("<p>Article URL:")
+        );
+    }
+
+    #[test]
+    fn parse_rss_general_ref() {
+        let xml = r#"<?xml version="1.0"?>
+                        <rss version="2.0"><channel>
+                            <title><![CDATA[Hacker News: Front Page]]></title>
+                            <link>https://news.ycombinator.com/</link>
+                            <description>Hacker News RSS</description>
+                            <item>
+                                <title>Hello &amp; goodbye &lt;world&gt;</title>
+                                <link>https://paulgraham.com/earn.html</link>
+                                <description><![CDATA[<p>Article URL: <a href="https://example.com">link</a></p>]]></description>
+                            </item>
+                        </channel></rss>"#;
+        let feed = RssParser.parse(xml).unwrap();
+        assert_eq!(
+            feed.entries[0].title.as_deref(),
+            Some("Hello & goodbye <world>")
         );
     }
 }

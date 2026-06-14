@@ -68,22 +68,25 @@ impl FeedParser for AtomParser {
                     }
                     if in_author {
                         if current_tag.as_str() == "name" {
-                            author_name = text;
+                            author_name.push_str(&text);
                         }
                     } else if in_entry {
                         match current_tag.as_str() {
-                            "id" => entry_id = text,
-                            "title" => entry_title = text,
-                            "link" => entry_link = text,
-                            "summary" => entry_desc = text,
+                            "id" => entry_id.push_str(&text),
+                            "title" => entry_title.push_str(&text),
+                            "link" => entry_link.push_str(&text),
+                            "summary" => entry_desc.push_str(&text),
                             "published" => entry_published = parse_rfc3339(&text)?,
                             "updated" => entry_updated = parse_rfc3339(&text)?,
                             _ => {}
                         }
                     } else {
                         match current_tag.as_str() {
-                            "title" => title = text,
-                            "subtitle" => description = Some(text),
+                            "title" => title.push_str(&text),
+                            "subtitle" => match &mut description {
+                                Some(v) => v.push_str(&text),
+                                None => description = Some(text),
+                            },
                             "updated" => updated = parse_rfc3339(&text)?,
                             _ => {}
                         }
@@ -96,22 +99,63 @@ impl FeedParser for AtomParser {
                     }
                     if in_author {
                         if current_tag.as_str() == "name" {
-                            author_name = text;
+                            author_name.push_str(&text);
                         }
                     } else if in_entry {
                         match current_tag.as_str() {
-                            "id" => entry_id = text,
-                            "title" => entry_title = text,
-                            "link" => entry_link = text,
-                            "summary" => entry_desc = text,
+                            "id" => entry_id.push_str(&text),
+                            "title" => entry_title.push_str(&text),
+                            "link" => entry_link.push_str(&text),
+                            "summary" => entry_desc.push_str(&text),
                             "published" => entry_published = parse_rfc3339(&text)?,
                             "updated" => entry_updated = parse_rfc3339(&text)?,
                             _ => {}
                         }
                     } else {
                         match current_tag.as_str() {
-                            "title" => title = text,
-                            "subtitle" => description = Some(text),
+                            "title" => title.push_str(&text),
+                            "subtitle" => match &mut description {
+                                Some(v) => v.push_str(&text),
+                                None => description = Some(text),
+                            },
+                            "updated" => updated = parse_rfc3339(&text)?,
+                            _ => {}
+                        }
+                    }
+                }
+                Ok(Event::GeneralRef(ev)) => {
+                    let text: String = match String::from_utf8_lossy(ev.as_ref()).trim() {
+                        "amp" => "&".into(),
+                        "lt" => "<".into(),
+                        "gt" => ">".into(),
+                        "quot" => "\"".into(),
+                        "apos" => "'".into(),
+                        _ => "".into(),
+                    };
+                    if text.is_empty() {
+                        continue;
+                    }
+                    if in_author {
+                        if current_tag.as_str() == "name" {
+                            author_name.push_str(&text);
+                        }
+                    } else if in_entry {
+                        match current_tag.as_str() {
+                            "id" => entry_id.push_str(&text),
+                            "title" => entry_title.push_str(&text),
+                            "link" => entry_link.push_str(&text),
+                            "summary" => entry_desc.push_str(&text),
+                            "published" => entry_published = parse_rfc3339(&text)?,
+                            "updated" => entry_updated = parse_rfc3339(&text)?,
+                            _ => {}
+                        }
+                    } else {
+                        match current_tag.as_str() {
+                            "title" => title.push_str(&text),
+                            "subtitle" => match &mut description {
+                                Some(v) => v.push_str(&text),
+                                None => description = Some(text),
+                            },
                             "updated" => updated = parse_rfc3339(&text)?,
                             _ => {}
                         }
@@ -123,21 +167,21 @@ impl FeedParser for AtomParser {
                         .to_string();
                     if tag == "entry" && in_entry {
                         entries.push(Entry {
-                            id: entry_id.clone(),
+                            id: entry_id.trim().into(),
                             title: if entry_title.is_empty() {
                                 None
                             } else {
-                                Some(entry_title.clone())
+                                Some(entry_title.trim().into())
                             },
                             link: if entry_link.is_empty() {
                                 None
                             } else {
-                                Some(entry_link.clone())
+                                Some(entry_link.trim().into())
                             },
                             summary: if entry_desc.is_empty() {
                                 None
                             } else {
-                                Some(entry_desc.clone())
+                                Some(entry_desc.trim().into())
                             },
                             content: None,
                             author: entry_author,
@@ -155,7 +199,7 @@ impl FeedParser for AtomParser {
                     }
                     if tag == "author" && in_author {
                         entry_author = Some(Author {
-                            name: author_name.clone(),
+                            name: author_name.trim().into(),
                             email: None,
                             uri: None,
                         });
@@ -175,9 +219,12 @@ impl FeedParser for AtomParser {
             }
         }
         Ok(Feed {
-            title,
-            link,
-            description,
+            title: title.trim().into(),
+            link: link.trim().into(),
+            description: match &description {
+                Some(desc) => Some(desc.trim().to_string()),
+                None => description,
+            },
             updated,
             entries,
         })
@@ -262,5 +309,66 @@ mod tests {
         let published = feed.entries[0].published.unwrap();
         // +02:00 offset → 08:00 UTC
         assert_eq!(published.format("%H:%M").to_string(), "08:00");
+    }
+
+    #[test]
+    fn parse_atom_entities_in_text() {
+        // Entities split text into Text + GeneralRef events. Parser must
+        // (a) decode each GeneralRef (amp->&, lt-><, ...), not append raw name,
+        // (b) accumulate fragments, not overwrite.
+        let xml = r#"<?xml version="1.0"?>
+            <feed xmlns="http://www.w3.org/2005/Atom">
+                <title>Tom &amp; Jerry &lt;cartoon&gt;</title>
+                <link href="https://example.com"/>
+                <entry>
+                    <id>e1</id>
+                    <title>Cats &amp; Dogs &lt;movie&gt;</title>
+                    <link href="https://example.com/1"/>
+                    <summary>5 &gt; 3 &amp; "quotes" &apos;n&apos; slash</summary>
+                </entry>
+            </feed>"#;
+        let feed = AtomParser.parse(xml).unwrap();
+
+        // feed-level title — exercises decode + accumulate
+        assert_eq!(feed.title, "Tom & Jerry <cartoon>");
+
+        // entry-level title — same bug class at entry scope
+        assert_eq!(
+            feed.entries[0].title.as_deref(),
+            Some("Cats & Dogs <movie>")
+        );
+
+        let summary = feed.entries[0].summary.as_deref().unwrap();
+        assert!(summary.contains("5 > 3 &"));
+        assert!(summary.contains("\"quotes\" 'n' slash"));
+    }
+
+    #[test]
+    fn parse_atom_trims_whitespace() {
+        let xml = r#"<?xml version="1.0"?>
+            <feed xmlns="http://www.w3.org/2005/Atom">
+                <title>
+                    Pretty Feed
+                </title>
+                <link href="https://example.com"/>
+                <entry>
+                    <id>e1</id>
+                    <title>
+                        Indented Entry
+                    </title>
+                    <link href="https://example.com/1"/>
+                    <summary>
+                        Spaced summary text
+                    </summary>
+                </entry>
+            </feed>"#;
+        let feed = AtomParser.parse(xml).unwrap();
+
+        assert_eq!(feed.title, "Pretty Feed");
+        assert_eq!(feed.entries[0].title.as_deref(), Some("Indented Entry"));
+        assert_eq!(
+            feed.entries[0].summary.as_deref(),
+            Some("Spaced summary text")
+        );
     }
 }
