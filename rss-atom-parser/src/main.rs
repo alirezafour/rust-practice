@@ -1,8 +1,8 @@
 use clap::{Parser, ValueEnum};
 use futures::future::join_all;
-use network_parse::{
-    detect::detect,
-    error::FeedError,
+use rss_atom_parser::{
+    detect::{detect, FeedFormat},
+    error::{FeedError, ParserError},
     fetch::{FeedFetcher, RequestFetcher},
     parser::{FeedParser, atom::AtomParser, rss::RssParser},
     serializer::{FeedSerializer, atom::AtomSerializer, json::JsonSerializer, rss::RssSerializer},
@@ -71,14 +71,10 @@ async fn process_feed(
     let bytes = fetcher.fetch(url).await?;
     let parsed_format = detect(&bytes);
     let mut feed = match parsed_format {
-        network_parse::detect::FeedFormat::Rss => {
-            RssParser.parse(&String::from_utf8_lossy(&bytes))?
-        }
-        network_parse::detect::FeedFormat::Atom => {
-            AtomParser.parse(&String::from_utf8_lossy(&bytes))?
-        }
-        network_parse::detect::FeedFormat::Unknown => {
-            return Err(FeedError::Parse(network_parse::error::ParserError {
+        FeedFormat::Rss => RssParser.parse(&String::from_utf8_lossy(&bytes))?,
+        FeedFormat::Atom => AtomParser.parse(&String::from_utf8_lossy(&bytes))?,
+        FeedFormat::Unknown => {
+            return Err(FeedError::Parse(ParserError {
                 tag: "unknown".into(),
                 message: "Unknown feed type".into(),
             }));

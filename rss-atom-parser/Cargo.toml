@@ -1,5 +1,5 @@
 [package]
-name = "network-parse"
+name = "rss-atom-parser"
 version = "0.1.0"
 edition = "2024"
 

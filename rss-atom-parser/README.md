@@ -1,4 +1,4 @@
-# network-parse
+# rss-atom-parser
 
 A command-line RSS/Atom feed aggregator written in Rust. Fetch one or many feed URLs concurrently, auto-detect the format, parse into a normalized model, and re-serialize as JSON, RSS, or Atom.
 
