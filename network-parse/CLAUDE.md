@@ -240,18 +240,19 @@ tests/
 - [x] Handle HTTP errors (404 → `FeedNotFoundError`, network → `FetchError`)
 
 ### Phase 6: CLI + pipeline wiring — `clap`, async main
-- [ ] Define CLI args with clap derive in `main.rs` (URL arg, `--format`, `--limit`)
-- [ ] Add `#[tokio::main]` async entry point
-- [ ] Wire pipeline: fetch → detect → parse → serialize → print
-- [ ] Test: `cargo run -- <url>` end-to-end with a real feed
-- [ ] Add JSON serialization output (`FeedSerializer` or direct `serde_json`)
+- [x] Define CLI args with clap derive in `main.rs` (URL arg, `--format`, `--limit`)
+- [x] Add `#[tokio::main]` async entry point
+- [x] Wire pipeline: fetch → detect → parse → serialize → print
+- [x] Test: `cargo run -- <url>` end-to-end with a real feed
+- [x] Add JSON serialization output (`FeedSerializer` or direct `serde_json`)
 
 ### Phase 7: Concurrent fetching — `tokio::spawn`, `Arc`
-- [ ] Accept multiple URLs via CLI
-- [ ] Fetch all feeds concurrently with `tokio::spawn`
-- [ ] Aggregate results with `futures::join!` or `JoinHandle` collection
-- [ ] Handle partial failures (one feed fails, others succeed)
-- [ ] Add `Arc` if shared state needed between tasks
+- [x] Accept multiple URLs via CLI (`urls: Vec<String>`)
+- [x] Fetch all feeds concurrently with `tokio::spawn`
+- [x] Aggregate results with `join_all` (each spawn returns `JoinHandle`)
+- [x] Handle partial failures (double-`Result` match: `Ok(Ok)` / `Ok(Err)` / `Err`)
+- [x] `Arc` not needed — `RequestFetcher` is ZST, `.clone()` free, no shared state
+- [ ] _Optional refactor_: hold `reqwest::Client` in fetcher for connection pooling → then `Arc<Client>` or clone-cheap `Client`
 
 ### Phase 8: XML round-trip serialization
 - [ ] Create `src/serializer/mod.rs` with `FeedSerializer` trait
@@ -263,4 +264,4 @@ tests/
 
 ## Current Status
 
-**Phase 5: Complete** ✅ — async fetch done. Moving to Phase 6.
+**Phase 7: Complete** ✅ — concurrent fetch via `tokio::spawn` + `join_all`, partial-failure handling, multiple URLs. Moving to Phase 8.

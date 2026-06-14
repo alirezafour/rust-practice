@@ -89,6 +89,34 @@ impl FeedParser for AtomParser {
                         }
                     }
                 }
+                Ok(Event::CData(ev)) => {
+                    let text = String::from_utf8_lossy(ev.as_ref()).trim().to_string();
+                    if text.is_empty() {
+                        continue;
+                    }
+                    if in_author {
+                        if current_tag.as_str() == "name" {
+                            author_name = text;
+                        }
+                    } else if in_entry {
+                        match current_tag.as_str() {
+                            "id" => entry_id = text,
+                            "title" => entry_title = text,
+                            "link" => entry_link = text,
+                            "summary" => entry_desc = text,
+                            "published" => entry_published = parse_rfc3339(&text)?,
+                            "updated" => entry_updated = parse_rfc3339(&text)?,
+                            _ => {}
+                        }
+                    } else {
+                        match current_tag.as_str() {
+                            "title" => title = text,
+                            "subtitle" => description = Some(text),
+                            "updated" => updated = parse_rfc3339(&text)?,
+                            _ => {}
+                        }
+                    }
+                }
                 Ok(Event::End(ev)) => {
                     let tag = String::from_utf8_lossy(ev.name().as_ref())
                         .trim()

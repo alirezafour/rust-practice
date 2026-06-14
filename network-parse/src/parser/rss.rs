@@ -62,6 +62,28 @@ impl FeedParser for RssParser {
                         }
                     }
                 }
+                Ok(Event::CData(ev)) => {
+                    let text = String::from_utf8_lossy(ev.as_ref()).trim().to_string();
+                    if text.is_empty() {
+                        continue;
+                    }
+                    if in_item {
+                        match current_tag.as_str() {
+                            "title" => item_title = text,
+                            "link" => item_link = text,
+                            "description" => item_desc = text,
+                            "pubDate" => item_published = parse_rfc2822(&text)?,
+                            _ => {}
+                        }
+                    } else if in_channel {
+                        match current_tag.as_str() {
+                            "title" => title = text,
+                            "link" => link = text,
+                            "description" => description = text,
+                            _ => {}
+                        }
+                    }
+                }
                 Ok(Event::End(ev)) => {
                     let tag = String::from_utf8_lossy(ev.name().as_ref()).to_string();
                     if tag == "item" && in_item {
@@ -176,5 +198,34 @@ mod tests {
         assert_eq!(feed.entries.len(), 2);
         assert!(feed.entries[0].published.is_some());
         assert!(feed.entries[1].published.is_none());
+    }
+
+    #[test]
+    fn parse_rss_cdata_content() {
+        let xml = r#"<?xml version="1.0"?>
+            <rss version="2.0"><channel>
+                <title><![CDATA[Hacker News: Front Page]]></title>
+                <link>https://news.ycombinator.com/</link>
+                <description>Hacker News RSS</description>
+                <item>
+                    <title><![CDATA[How to Earn a Billion Dollars]]></title>
+                    <link>https://paulgraham.com/earn.html</link>
+                    <description><![CDATA[<p>Article URL: <a href="https://example.com">link</a></p>]]></description>
+                </item>
+            </channel></rss>"#;
+
+        let feed = RssParser.parse(xml).unwrap();
+        assert_eq!(feed.title, "Hacker News: Front Page");
+        assert_eq!(
+            feed.entries[0].title.as_deref(),
+            Some("How to Earn a Billion Dollars")
+        );
+        assert!(
+            feed.entries[0]
+                .summary
+                .as_ref()
+                .unwrap()
+                .contains("<p>Article URL:")
+        );
     }
 }
