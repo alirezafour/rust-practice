@@ -93,6 +93,18 @@ cargo run -- <feed-url>      # fetch and parse a single feed
 cargo clippy                 # lint
 cargo fmt                    # format
 cargo fmt -- --check         # check formatting
+cargo doc -p <crate> --no-deps   # build rustdoc HTML for a dependency → target/doc/<crate>/
+```
+
+## Looking up crate APIs
+
+- **Signatures/types (fastest):** grep crate source directly in
+  `~/.cargo/registry/src/index.crates.io-*/<crate>-<version>/src/`. Already on disk,
+  no build step, exact types the compiler sees.
+- **Prose/examples/traits:** `cargo doc -p <crate> --no-deps`, then read
+  `target/doc/<crate>/index.html` (replaces `/` in name with `_`, e.g. `quick_xml`).
+  Authoritative — built from the same source the compiler uses.
+- Prefer offline source/docs over docs.rs/web; web only when neither has the answer.
 ```
 
 ## Architecture
@@ -255,13 +267,15 @@ tests/
 - [ ] _Optional refactor_: hold `reqwest::Client` in fetcher for connection pooling → then `Arc<Client>` or clone-cheap `Client`
 
 ### Phase 8: XML round-trip serialization
-- [ ] Create `src/serializer/mod.rs` with `FeedSerializer` trait
-- [ ] Create `src/serializer/json.rs` (JSON via serde)
-- [ ] Create `src/serializer/xml.rs` (XML output)
-- [ ] Verify `parse(serialize(feed))` round-trip property for both formats
-- [ ] Handle edge cases: empty feeds, missing fields, special chars in XML
-- [ ] Property-based tests or extended fixture tests
+- [x] Create `src/serializer/mod.rs` with `FeedSerializer` trait
+- [x] Create `src/serializer/json.rs` (JSON via serde)
+- [x] Create `src/serializer/rss.rs` (RSS 2.0 output via quick-xml `Writer`)
+- [x] Create `src/serializer/atom.rs` (Atom output via quick-xml `Writer`)
+- [x] Verify `parse(serialize(feed))` round-trip property for both formats
+- [x] Handle edge cases: empty feeds, missing fields, special chars in XML
+- [x] Wire `--format json|rss|atom` into CLI (clap `ValueEnum`)
+- [x] _Bug fix along the way_: parser text-fragment bug — quick-xml splits text at entity refs into separate `Text` + `GeneralRef` events; parsers were assigning (last-wins) instead of accumulating, and not decoding entities. Fixed in `rss.rs` + `atom.rs` (decode + `push_str` + trim-at-End).
 
 ## Current Status
 
-**Phase 7: Complete** ✅ — concurrent fetch via `tokio::spawn` + `join_all`, partial-failure handling, multiple URLs. Moving to Phase 8.
+**Phase 8: Complete** ✅ — serializers (JSON/RSS/Atom) + `--format` CLI flag + round-trip property tests. Surfaced & fixed a latent parser text-fragment bug (entity refs split text events) across `rss.rs`/`atom.rs`. All 8 phases done; 23 tests green.

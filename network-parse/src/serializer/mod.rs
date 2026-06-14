@@ -6,4 +6,6 @@ pub trait FeedSerializer {
     }
 }
 
+pub mod atom;
 pub mod json;
+pub mod rss;
